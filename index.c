@@ -14,17 +14,17 @@ typedef struct{
     char name[MAX + 1];
 } User;
 
-void create_user_directory(const char *username) {
+void create_user_directory(const char *username){
     char path[256];
     snprintf(path, sizeof(path), "./user_data/%s", username);
     mkdir("user_data", 0700);
-    if (mkdir(path, 0700) == -1 && errno != EEXIST) {
+    if (mkdir(path, 0700) == -1 && errno != EEXIST){
         perror("Failed to create user directory");
     }
 }
 
 // 비밀번호 입력 시 에코 비활성화
-void get_password(char *password, size_t max_len) {
+void get_password(char *password, size_t max_len){
     struct termios oldt, newt;
     int i = 0;
     int c;
@@ -35,7 +35,7 @@ void get_password(char *password, size_t max_len) {
     newt.c_lflag &= ~(ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
-    while ((c = getchar()) != '\n' && c != EOF && i < max_len - 1) {
+    while((c = getchar()) != '\n' && c != EOF && i < max_len - 1){
         password[i++] = c;
     }
     password[i] = '\0';
@@ -70,11 +70,11 @@ void SignUp(){
     printf("User registered successfully\n");
 }
 
-int SignIn() {
+int SignIn(){
     User s;
     char input_id[MAX + 1], input_pw[MAX + 1];
 
-    for (int i = 0; i < 3; i++) {
+    for(int i = 0; i < 3; i++){
         system("clear");
         printf("\nId: ");
         scanf("%10s", input_id);
@@ -84,16 +84,18 @@ int SignIn() {
         get_password(input_pw, sizeof(input_pw));
 
         FILE *fp = fopen("user.config", "r");
-        if (fp == NULL) {
+
+        if(fp == NULL){
             perror("Failed to open user.config");
             return 0;
         }
 
         char line[256];
         int login_success = 0;
-        while (fgets(line, sizeof(line), fp)) {
+        while(fgets(line, sizeof(line), fp)){
             sscanf(line, "%10[^:]:%10[^:]:%10s", s.id, s.pw, s.name);
-            if (strcmp(s.id, input_id) == 0 && strcmp(s.pw, input_pw) == 0) {   // 사용자 정보가 존재하는지 확인
+
+            if (strcmp(s.id, input_id) == 0 && strcmp(s.pw, input_pw) == 0){   // 사용자 정보가 존재하는지 확인
                 system("clear");
                 printf("Login successful. Welcome, %s!\n", s.name);
                 login_success = 1;
@@ -102,9 +104,10 @@ int SignIn() {
         }
         fclose(fp);
 
-        if (login_success) {
+        if(login_success){
             return 1; // 로그인 성공
-        } else {
+        } 
+        else{
             printf("Invalid ID or password. Attempts remaining: %d\n", 2 - i);
             printf("Press Enter to try again...\n");
             while(getchar() != '\n');
@@ -115,7 +118,7 @@ int SignIn() {
 
 int main(void){
     int choice;
-    while (1) {
+    while (1){
         system("clear");
         printf("1. Sign In\n");
         printf("2. Sign Up\n");
@@ -123,17 +126,20 @@ int main(void){
         scanf("%d", &choice);
         while(getchar() != '\n'); 
 
-        if (choice == 1) {
-            if (SignIn()) {
+        if (choice == 1){
+            if (SignIn()){
                 system("clear");
                 printf("다음 페이지\n");
                 return 0;
-            } else {
+            }
+            else{
                 printf("SignIn failed.\n");
             }
-        } else if (choice == 2) {
+        } 
+        else if(choice == 2){
             SignUp();
-        } else {
+        } 
+        else{
             printf("Invalid option\n");
         }
     }
