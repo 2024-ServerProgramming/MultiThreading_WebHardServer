@@ -17,7 +17,8 @@ void errquit(char *mesg) { //
 int tcp_listen(int host, int port, int backlog) {
     int sd;                      // 소켓 디스크립터
     struct sockaddr_in servaddr; // IPv4 주소 정보를 관리하는 구조체
-    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) <0) {                    // AF_INET => Pv4 주소 체계, SOCK_STREAM => TCP(연결 지향형) 소켓을 의미
+    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) <
+        0) {                    // AF_INET => Pv4 주소 체계, SOCK_STREAM => TCP(연결 지향형) 소켓을 의미
         errquit('socket fail'); // 소켓 생성하면 socket() 는 -1 반환, 성공하면 양수 반환
     }
     bzero((char *)&servaddr, sizeof(servaddr)); // servaddr 초기화
@@ -66,7 +67,8 @@ int main(int argc, char *argv[]) {
         // 버퍼 사이즈 5로 설정
         // 마지막 파라미터는 읽을 데이터 유형 옵션임 0 => 일반데이터 받을거라는 뜻
 
-        if (!strcmp(command, "cd\n")) { // cd 명령어 처리 (경로 변경)?? 근데 이게 왜 필요한거지?? -> 프로세스에서 뭐 저장하거나 할때 원하는 경로에 저장하기 위해.
+        if (!strcmp(command, "cd\n")) { // cd 명령어 처리 (경로 변경)?? 근데 이게 왜 필요한거지?? -> 프로세스에서 뭐
+                                        // 저장하거나 할때 원하는 경로에 저장하기 위해.
             recv(accp_sock, dir, MAXLINE, 0); // 경로수신
             if (chdir(dir) == 0)
                 success = 1; // 경로변경 성공
@@ -79,47 +81,63 @@ int main(int argc, char *argv[]) {
             file = fopen(filename, "rb");          // file name => 경로포함 파일 이름,
             // rb모드 => r= 읽기전용, b= 바이너리모드(데이터 그대로) ==> 바이너리 데이터 그대로 읽기.(텍스트던 뭐던)
             int isnull = 0;
-            if(file == NULL){ // 파일을 봤는데 아무것도 없다면,
-                isnull = 1;// 널 플래그 1로해주고
-                send(accp_sock, &isnull, sizeof(isnull), 0); //클라이언트에게 널 사인보냄
-                // accp_sock : 클라이언트 소켓 디스크립터, &isnull : 널플래그 주소, sizeof(isnull) : 사이즈,  0 : 일반 전송 옵션
+            if (file == NULL) {                              // 파일을 봤는데 아무것도 없다면,
+                isnull = 1;                                  // 널 플래그 1로해주고
+                send(accp_sock, &isnull, sizeof(isnull), 0); // 클라이언트에게 널 사인보냄
+                // accp_sock : 클라이언트 소켓 디스크립터, &isnull : 널플래그 주소, sizeof(isnull) : 사이즈,  0 : 일반
+                // 전송 옵션
                 continue;
             }
-            send(accp_sock, &isnull, sizeof(isnull),0); // 파일 존재 여부 전송 (널 아니니까 이건 널 아님 이라고 전송 isnull =0)
-            
-            fseek(file, 0, SEEK_END); //파일 포인터를 끝으로 이동
-            fsize = ftell(file); // 파일 포인터 시작기준 오프셋 읽음 = 파일의크기 
+            send(accp_sock, &isnull, sizeof(isnull),
+                 0); // 파일 존재 여부 전송 (널 아니니까 이건 널 아님 이라고 전송 isnull =0)
+
+            fseek(file, 0, SEEK_END); // 파일 포인터를 끝으로 이동
+            fsize = ftell(file);      // 파일 포인터 시작기준 오프셋 읽음 = 파일의크기
             // fseek(file, 0, SEEK_END); fsize = ftell(file); 은 파일 크기를 구하는 국룰 코드다.
-            fseek(file,0,SEEK_SET); // 파일 포인터 다시 처음으로 이동
+            fseek(file, 0, SEEK_SET); // 파일 포인터 다시 처음으로 이동
 
             size_t size = htonl(fsize); // 사이즈 빅엔디언으로 정규화 (네트워크로 클라이언트에 전달할거)
             // success, isnull 둘다 send 할때 빅엔디언 정규화 (htonl(fsize)) 안했는데 왜 얘만하냐?
             // success, isnull 은 둘다 단일바이트 즉, 0 또는 1밖에 저장안되므로 빅엔디언이든 뭐든 상관 x
-            // 하지만, 사이즈는 여러바이트로 구성되어있으니 빅엔디언(네트워크 바이트 순서)으로 정규화 해서 클라이언트에 전송해야한다.
-            // 다중바이트 데이터는 빅엔디언으로 변환 (네트워크 전송 표준) 을 해서 보내야함.
-            send(accp_sock, &size, sizeof(fsize),0); //파일 크기 전송
-            int nsize =0;
-            while(nsize != fsize){
+            // 하지만, 사이즈는 여러바이트로 구성되어있으니 빅엔디언(네트워크 바이트 순서)으로 정규화 해서 클라이언트에
+            // 전송해야한다. 다중바이트 데이터는 빅엔디언으로 변환 (네트워크 전송 표준) 을 해서 보내야함.
+            send(accp_sock, &size, sizeof(fsize), 0); // 파일 크기 전송
+            int nsize = 0;
+            while (nsize != fsize) {
                 int fpsize = fread(buf, 1, BUFSIZE, file);
                 nsize += fpsize;
                 send(accp_sock, buf, fpsize, 0);
             }
             fclose(file);
-        }
-        else if (!strcmp(command, "put\n")){ //put 명령어 처리(업로드)
-            int isnull =0;
+        } else if (!strcmp(command, "put\n")) { // put 명령어 처리(업로드)
+            int isnull = 0;
             recv(accp_sock, &isnull, sizeof(isnull), 0);
-            if(isnull == 1){
+            if (isnull == 1) {
                 continue;
             }
 
-            recv(accp_sock, filename, MAXLINE, 0); //파일 이름 수신
-            file = fopen(filename, "wb") //쓰기전용, 이진파일모드로 열기
-            recv(accp_sock, &fsize, sizeof(fsize),0); // 파일 크기 수신??
+            recv(accp_sock, filename, MAXLINE, 0);     // 파일 이름 수신
+            file = fopen(filename, "wb");              // 쓰기전용, 이진파일모드로 열기
+            recv(accp_sock, &fsize, sizeof(fsize), 0); // 파일 크기 수신??
 
             nbyte = BUFSIZE;
-            while(nbyte>=BUFSIZE){
-                
+            while (nbyte >= BUFSIZE) { // nbyte == BUFSIZE 라는건, 데이터 읽을게 딱 떨어졌거나, 더있다는 뜻
+                nbyte = recv(accp_sock, buf, BUFSIZE, 0); // buf에 저장 다 해놓고, nbyte에 읽은 바이트수 리턴
+                success = fwrite(buf, sizeof(char), nbyte, file); // file 에다가 버퍼내용 nbyte 만큼 기록
+                if (nbyte < BUFSIZE)
+                    success = 1; // 버퍼 사이즈 n 바이트 보다 작으면 끝났다는 뜻 success =1;
+            }
+            send(accp_sock, &success, sizeof(int), 0); // 성공여부 전송
+            fclose(file);
+        } else if (!strcmp(command, "quit")) {        // 클라이언트 한테 입력받은 command 가 quit 일때
+            int isexit = 0;                           // 초기화
+            recv(accp_sock, &isexit, sizeof(int), 0); // 진짜 나갈건지 클라이언트 답변을 받아옴
+
+            if (isexit) { // 결국 진짜 나간대
+                printf("프로그램을 종료합니다.\n");
+                close(listen_sock); // 서버 소켓 닫기
+                close(accp_sock);   // 클라이언트 소켓닫기
+                exit(0);            // 프로그램종료
             }
         }
     }
