@@ -6,7 +6,7 @@
 #include<sys/socket.h>
 #include<netinet/in.h>
 #include<termios.h>
-#define PORTNUM 0
+#define PORTNUM ****
 #define MAX 10
 
 typedef struct{
@@ -14,6 +14,51 @@ typedef struct{
     char pw[MAX + 1];
     char name[MAX + 1];
 } User;
+
+
+void sign_in(int sd){
+    User s;
+    char buf[256];
+    int n;
+
+    printf("\nId: ");
+    scanf("%10s", s.id);
+    getchar();
+
+    printf("\nPassword: ");
+    get_password(s.pw, sizeof(s.pw));
+
+    strcpy(buf, "SignIn");
+    send(sd, buf, strlen(buf), 0);
+
+    sprintf(buf, "%s:%s", s.id, s.pw);
+    send(sd, buf, strlen(buf), 0);
+
+    n = recv(sd, buf, sizeof(buf) - 1, 0);
+    if(n == -1){
+        perror("recv");
+        exit(1);
+    }
+
+    buf[n] = '\0';
+    printf("%s\n", buf);
+
+    if (strstr(buf, "Login successful") != NULL){
+        strcpy(buf, "ListFile");
+        send(sd, buf, strlen(buf), 0);
+        
+        n = recv(sd, buf, sizeof(buf) - 1, 0);
+        if(n == -1){
+            perror("recv");
+            exit(1);
+        }
+        buf[n] = '\0';
+        printf("Files:\n%s\n", buf);
+    }
+    else{
+        return 0; 
+    }
+}
 
 // 비밀번호 입력 시 에코 비활성화 함수
 void get_password(char *password, size_t max_len){
@@ -23,7 +68,7 @@ void get_password(char *password, size_t max_len){
 
     // 현재 터미널 설정을 가져옴
     tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
+    newt = oldt;~
     newt.c_lflag &= ~(ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
@@ -69,35 +114,6 @@ void sign_up(int sd){
     printf("%s\n", buf);
 }
 
-
-void sign_in(int sd){
-    User s;
-    char buf[256];
-    int n;
-
-    printf("\nId: ");
-    scanf("%10s", s.id);
-    getchar();
-
-    printf("\nPassword: ");
-    get_password(s.pw, sizeof(s.pw));
-
-    strcpy(buf, "SignIn");
-    send(sd, buf, strlen(buf), 0);
-
-    sprintf(buf, "%s:%s", s.id, s.pw);
-    send(sd, buf, strlen(buf), 0);
-
-    n = recv(sd, buf, sizeof(buf) - 1, 0);
-    if(n == -1){
-        perror("recv");
-        exit(1);
-    }
-
-    buf[n] = '\0';
-    printf("%s\n", buf);
-}
-
 void client_menu(int sd){
     int select;
 
@@ -120,6 +136,20 @@ void client_menu(int sd){
     }
 }
 
+void list_files(int sd) {
+    char buf[256];
+    int n;
+
+    n = recv(sd, buf, sizeof(buf) - 1, 0);
+    if (n == -1) {
+        perror("recv");
+        exit(1);
+    }
+    buf[n] = '\0';
+    printf("Files:\n%s\n", buf);
+}
+
+
 int main(){
     int sd;
     struct sockaddr_in sin;
@@ -129,10 +159,13 @@ int main(){
         exit(1);
     }
 
+    int optvalue = 1;
+    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optvalue, sizeof(optvalue));
+
     memset((char *)&sin, '\0', sizeof(sin));
     sin.sin_family = AF_INET;
     sin.sin_port = htons(PORTNUM);
-    sin.sin_addr.s_addr = inet_addr("");
+    sin.sin_addr.s_addr = inet_addr("****");
 
     if(inet_pton(AF_INET, "", &sin.sin_addr) == -1){
         perror("Invalid address");
