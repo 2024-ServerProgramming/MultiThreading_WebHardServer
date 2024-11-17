@@ -5,8 +5,8 @@
 #include<arpa/inet.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
-#include <sys/stat.h> 
-#include <errno.h>     
+#include<sys/stat.h>
+#include<errno.h>
 #define PORTNUM 0
 #define MAX 10
 
@@ -30,13 +30,10 @@ void sign_up(int cli){
     char buf[256];
     int n;
 
-    // 클라이언트로부터 사용자 정보 수신
-    n = recv(cli, buf, sizeof(buf) - 1, 0);
-    if(n == -1){
+    if((recv(cli, buf, sizeof(buf) - 1, 0)) == -1){
         perror("recv");
         exit(1);
     }
-    buf[n] = '\0';
 
     sscanf(buf, "%10[^:]:%10[^:]:%10s", s.id, s.pw, s.name);
 
@@ -51,26 +48,24 @@ void sign_up(int cli){
 
     create_user_directory(s.id);
 
-    // 결과 전송
     strcpy(buf, "User registered successfully");
     send(cli, buf, strlen(buf), 0);
 }
 
 void sign_in(int cli){
     User s;
-    char buf[256];
+	char buf[256];
     int n;
 
-     // 클라이언트로부터 로그인 정보 수신
-    n = recv(cli, buf, sizeof(buf) - 1, 0);
-    if(n == -1){
+    // 클라이언트로부터 로그인 정보 수신
+    if((recv(cli, buf, sizeof(buf) - 1, 0)) == -1){
         perror("recv");
         exit(1);
     }
-    buf[n] = '\0';
 
     sscanf(buf, "%10[^:]:%10s", s.id, s.pw);
 
+    // 사용자 인증
     FILE *fp = fopen("user.config", "r");
     if(fp == NULL){
         perror("Failed to open user.config");
@@ -103,19 +98,20 @@ void handle_client(int cli){
     char buf[256];
     int rsize;
 
-    while((rsize = recv(cli, buf, sizeof(buf), 0)) == -1){
+    while((rsize = recv(cli, buf, sizeof(buf), 0)) > 0){
         buf[rsize] = '\0';
 
-        if(strcmp(buf, "SignUp")){
+        if(strcmp(buf, "SignUp") == 0){
             sign_up(cli);
         }
-        else if(strcmp(buf, "SignIn")){
+        else if(strcmp(buf, "SignIn") == 0){
             sign_in(cli);
-        }   
+        }
         else{
             perror("handle_client");
             exit(1);
         }
+
     }
 
     if (rsize == 0) {
@@ -130,15 +126,15 @@ int main(void){
         struct sockaddr_in sin, cli;
         int sd, ns, clientlen = sizeof(cli);
 
-        memset((char *)&sin, '\0', sizeof(sin));
-        sin.sin_family = AF_INET;
-        sin.sin_port = htons(PORTNUM);
-        sin.sin_addr.s_addr = inet_addr("0.0.0.0");
-
         if((sd = socket(AF_INET, SOCK_STREAM, 0)) == 0){
             perror("socket");
             exit(1);
         }
+        
+        memset((char *)&sin, '\0', sizeof(sin));
+        sin.sin_family = AF_INET;
+        sin.sin_port = htons(PORTNUM);
+        sin.sin_addr.s_addr = inet_addr("0.0.0.0");
 
         if(bind(sd, (struct sockaddr *)&sin, sizeof(sin))){
             perror("Bind");

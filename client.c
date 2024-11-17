@@ -56,11 +56,11 @@ void sign_up(int sd){
     strcpy(buf, "SignUp");
     send(sd, buf, strlen(buf), 0);
 
-    // 사용자 정보 전송
     sprintf(buf, "%s:%s:%s", s.id, s.pw, s.name);
     send(sd, buf, strlen(buf), 0);
-    
-    if((recv(sd, buf, sizeof(buf), 0)) == -1){
+
+    n = recv(sd, buf, sizeof(buf), 0);
+    if(n == -1){
         perror("recv");
         exit(1);
     }
@@ -124,21 +124,22 @@ int main(){
     int sd;
     struct sockaddr_in sin;
 
-    memset((char *)&sin, '\0', sizeof(sin));
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(PORTNUM);
-
     if((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         perror("Socket");
         exit(1);
     }
 
+    memset((char *)&sin, '\0', sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(PORTNUM);
+    sin.sin_addr.s_addr = inet_addr("");
+
     if(inet_pton(AF_INET, "", &sin.sin_addr) == -1){
-        perror("Invalid address\n");
+        perror("Invalid address");
         exit(1);
     }
 
-    if(connect(sd, (struct sockaddr *)&sin, sizeof(sin))){
+    if(connect(sd, (struct sockaddr *)&sin, sizeof(sin)) == -1){
         perror("connect");
         exit(1);
     }
