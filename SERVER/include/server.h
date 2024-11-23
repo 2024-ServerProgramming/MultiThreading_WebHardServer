@@ -24,7 +24,8 @@ typedef struct {
 /* 서버 관련 함수 */
 void sign_in(CliSession *session);
 void sign_up(CliSession *session);
-void list_files(CliSession *session);
+void list_file(CliSession *session);
 void handle_client(int cli);
+void *client_thread(void *arg);
 
 #endif 
