@@ -3,7 +3,7 @@
 static Session *session_list = NULL;
 
 void generate_session_id(char *session_id){
-		const char *chars = "ABCDEFG...ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+		const char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 		for(int i = 0; i < MAX_LENGTH; i++){
 			session_id[i] = chars[rand() % strlen(chars)];
 		}

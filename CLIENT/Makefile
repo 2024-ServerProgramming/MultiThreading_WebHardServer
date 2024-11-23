@@ -6,10 +6,10 @@ INCDIR = include
 OBJDIR = obj
 BINDIR = bin
 
-BIN = $(BINDIR)/server.exe
+BIN = ./$(BINDIR)/clint.exe
 
-SRCS = $(SRCDIR)/server_main.c $(SRCDIR)/server_userAuth.c $(SRCDIR)/server_session.c
-OBJS = $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+SRCS = ./$(SRCDIR)/client_main.c $(SRCDIR)/client_userAuth.c
+OBJS = ./$(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Default target
 all: $(BIN)

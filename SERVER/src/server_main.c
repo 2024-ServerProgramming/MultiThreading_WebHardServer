@@ -3,6 +3,45 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+void handle_client(int cli){
+    char buf[BUFSIZE];
+    int rsize;
+
+    CliSession cliS;
+    memset(&cliS, 0, sizeof(CliSession));
+    cliS.cli_data = cli;
+    cliS.is_login = 0;
+
+    while((rsize = recv(cli, buf, sizeof(buf), 0)) > 0){
+        buf[rsize] = '\0';
+
+        if(strcmp(buf, "SignUp") == 0){
+            sign_up(&cliS);
+        }
+        else if(strcmp(buf, "SignIn") == 0){
+            sign_in(&cliS);
+        }
+        else if(strcmp(buf, "ListFile") == 0){
+            if(cliS.is_login){
+                list_file(&cliS);
+            }
+        }
+        else {
+            printf("Unknown command: %s\n", buf);
+            snprintf(buf, sizeof(buf), "Unknown command: %s", buf);
+            send(cliS.cli_data, buf, strlen(buf), 0);
+        }
+    }
+
+    if (rsize == 0) {
+        printf("Client disconnected\n");
+    } 
+    else if(rsize == -1){
+        perror("recv");
+        exit(1);
+    }
+    close(cliS.cli_data);
+}
 
 int main(void){
         struct sockaddr_in sin, cli;
@@ -45,7 +84,6 @@ int main(void){
 
         handle_client(ns);
 
-        close(ns);
     }
 
     close(sd);
