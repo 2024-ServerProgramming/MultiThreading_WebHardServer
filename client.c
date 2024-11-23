@@ -30,7 +30,7 @@ int tcp_connect(char *ip, int port) {
 
     if (connect(sd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         // 클라이언트 소켓 sd로 서버 소켓주소 정보 servaddr를 통해서 연결요청함.
-        erroquit("connect fail");
+        errquit("connect fail");
     }
     return sd;
 }
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     size_t fsize;
 
     if (argc != 3) { // 파라미터 3개아니면 컷 (실행파일 합쳐서)
-        printf("사용법 : %s [server_ip]\n", argv[0]);
+        printf("사용법 : %s [server_ip] [portnum]\n", argv[0]);
         exit(0);
     }
 
@@ -57,6 +57,8 @@ int main(int argc, char *argv[]) {
         printf("[command]");
         fgets(command, 5, stdin);         // 널문자 포함해서 5개 입력받을게 (명렁어)
         send(listen_sock, command, 5, 0); // 클라이언트 소켓 타고 명령어 보냄, 0 은 일반적인 전송
+        while (getchar() != '\n')
+            ; // 버퍼지우기
 
         if (!strcmp(command, "cd\n")) {
             printf("이동을 원하는 경로 : ");
