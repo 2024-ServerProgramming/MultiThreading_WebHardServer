@@ -2,22 +2,22 @@
 #define SERVER_H
 
 #include "session.h"
-#include "config.h"
+#include "server_config.h"
 
 #define MAX 10
 
-// 사용자 정보 구조체
+/* 사용자 정보 구조체 */
 typedef struct {
     char id[MAX_LENGTH + 1];
     char pw[MAX_LENGTH + 1];
     char name[MAX_LENGTH + 1];
 } User;
 
-// 클라이언트 세션 구조체
+/* 클라이언트 세션 구조체 */
 typedef struct {
-    int cli_data;     // 클라이언트 소켓
-    int is_login;     // 로그인 여부
-    Session *session; // 세션 포인터 (로그인된 사용자의 세션 참조)
+    int cli_data;       // 클라이언트 소켓
+    int is_login;       // 로그인 여부
+    Session *session;   // 세션 포인터 (로그인된 사용자의 세션 참조)
 } CliSession;
 
 

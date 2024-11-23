@@ -1,9 +1,11 @@
 #ifndef SESSION_H
 #define SESSION_H
 
-#include "config.h"
+#include "server_config.h"
 #define MAX_LENGTH 32
 
+
+/* 세션 정보 구조체 */
 typedef struct Session{
     char session_id[MAX_LENGTH + 1];    // 세션 id 저장
     char user_id[MAX_LENGTH + 1];       // 로그인한 유저id
