@@ -38,7 +38,8 @@ int main(int argc, char *argv[]) {
 		printf("[command] ");
 		fgets(command, 5, stdin); // 명령어 입력
 		send(listen_sock, command, 5, 0); // 명령어 전송
-
+		while (getchar() != '\n');// 버퍼지우기
+		
 		if (!strcmp(command, "cd\n")) { // cd 명령어 처리
 			printf("이동을 원하는 경로 : ");
 			scanf("%s", dir); // 경로 입력
