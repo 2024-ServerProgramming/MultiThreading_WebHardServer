@@ -6,7 +6,7 @@
 #include<sys/socket.h>
 #include<netinet/in.h>
 #include<termios.h>
-#define PORTNUM ****
+#define PORTNUM 7777
 #define MAX 10
 
 typedef struct{
@@ -68,7 +68,7 @@ void get_password(char *password, size_t max_len){
 
     // 현재 터미널 설정을 가져옴
     tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;~
+    newt = oldt;
     newt.c_lflag &= ~(ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
@@ -165,7 +165,7 @@ int main(){
     memset((char *)&sin, '\0', sizeof(sin));
     sin.sin_family = AF_INET;
     sin.sin_port = htons(PORTNUM);
-    sin.sin_addr.s_addr = inet_addr("****");
+    sin.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     if(inet_pton(AF_INET, "", &sin.sin_addr) == -1){
         perror("Invalid address");
