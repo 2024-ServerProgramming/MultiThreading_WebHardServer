@@ -1,4 +1,5 @@
 #include "server.h"
+#include "session.h"
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
@@ -50,6 +51,7 @@ void sign_in(CliSession *cliS){
         snprintf(buf, sizeof(buf), "Login successful. Welcome, %s!", s.id);
         cliS->is_login = 1;
         cliS->session = create_session(s.id); 
+        //print_session(); 디버깅용
     } 
     else{
         strcpy(buf, "Invalid ID or password.");

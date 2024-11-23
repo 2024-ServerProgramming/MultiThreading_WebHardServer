@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <pthread.h>
 
 void handle_client(int cli){
     char buf[BUFSIZE];
@@ -75,18 +76,36 @@ int main(void){
         //연결확인 주석: printf("server is listening on port %d\n", PORTNUM);
 
         while(1){
-            if((ns = accept(sd, (struct sockaddr *)&cli, &clientlen)) == -1){
+            int *new_sock = malloc(sizeof(int));
+            *new_sock = accept(sd, (struct sockaddr *)&cli, &clientlen);
+            if (*new_sock < 0){
                 perror("Accept");
-                exit(1);
+                free(new_sock);
+                continue;
             }
-            
-        //연결확인 주석: printf("Connected to client: %s\n", inet_ntoa(cli.sin_addr));
 
-        handle_client(ns);
-
+            pthread_t tid;
+            if (pthread_create(&tid, NULL, client_thread, (void *)new_sock) != 0) {
+                perror("pthread_create");
+                free(new_sock);
+            }
+            pthread_detach(tid);
     }
 
     close(sd);
     return 0;
 }
 
+void *client_thread(void *arg){
+    int cli_sock = *((int *)arg);
+    free(arg);
+
+    printf("Client thread started: TID %lu\n", pthread_self());
+
+    handle_client(cli_sock);
+
+    close(cli_sock);
+    printf("Client thread finished: TID %lu\n", pthread_self());
+
+    pthread_exit(NULL);
+}
