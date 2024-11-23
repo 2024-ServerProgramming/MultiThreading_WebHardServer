@@ -100,12 +100,8 @@ void *client_thread(void *arg){
     int cli_sock = *((int *)arg);
     free(arg);
 
-    printf("Client thread started: TID %lu\n", pthread_self());
-
     handle_client(cli_sock);
 
     close(cli_sock);
-    printf("Client thread finished: TID %lu\n", pthread_self());
-
     pthread_exit(NULL);
 }
