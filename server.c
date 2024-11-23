@@ -9,23 +9,23 @@
 #define MAXLINE 511
 #define BUFSIZE 256
 
-void errquit(char *mesg) { //
-    perror(mesg);          // 에러메세지 cli 로 출력
+void errquit(char *mesg) {
+    perror(mesg); // 에러메세지 cli 로 출력
     exit(0);
 }
 
 int tcp_listen(int host, int port, int backlog) {
     int sd;                      // 소켓 디스크립터
     struct sockaddr_in servaddr; // IPv4 주소 정보를 관리하는 구조체
-    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) <
-        0) {                    // AF_INET => Pv4 주소 체계, SOCK_STREAM => TCP(연결 지향형) 소켓을 의미
-        errquit('socket fail'); // 소켓 생성하면 socket() 는 -1 반환, 성공하면 양수 반환
+    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        // AF_INET => Pv4 주소 체계, SOCK_STREAM => TCP(연결 지향형) 소켓을 의미
+        errquit("socket fail"); // 소켓 생성하면 socket() 는 -1 반환, 성공하면 양수 반환
     }
     bzero((char *)&servaddr, sizeof(servaddr)); // servaddr 초기화
     servaddr.sin_family = AF_INET;              // IPv4 주소체계 사용
     servaddr.sin_addr.s_addr = htonl(host); // 네트워크로 데이터를 전송할때 빅엔디언으로 정규화 해서 보내야함.
     servaddr.sin_port = htons(port); // 포트번호도 빅엔디언으로 정규화
-    if (bind(sd, (struct sockadd *)&servaddr, sizeof(servaddr)) < 0) {
+    if (bind(sd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         // 서버에서 바인딩해서 서버 소켓에 아이피, 포트번호 등록해줌.
         errquit("bind fail");
     }
@@ -47,9 +47,8 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    listen_sock =
-        tcp_listen(INADDR_ANY, atoi(argv[1]),
-                   5); // 여기서 INADDR_ANY unsigned long 이라 int host 에 안맞을거 같은데.. 8바이트 -> 4바이트??
+    listen_sock = tcp_listen(INADDR_ANY, atoi(argv[1]), 5);
+    // 여기서 INADDR_ANY unsigned long 이라 int host 에 안맞을거 같은데.. 8바이트 -> 4바이트??
     // 파라미터 각각 INADDR_ANY = 이컴퓨터가 쓰는 IP아무거나 되는거 통해서 클라이언트 요청 받는다. int host에 대응
     // atoi(argv[1]) => int port 에 대응. 입력 파라미터로 port 번호받음 ex) ./a.out 8080
     // 5 => 대기큐 사이즈 정하기 listen(sd,5);
@@ -58,7 +57,7 @@ int main(int argc, char *argv[]) {
     } // listen_sock 은 서버 소켓이다.
 
     addrlen = sizeof(cliaddr); // cliaddr 은 sockaddr_in 형이잖아 16바이트 씀 결국 16바이트 길이 나옴.
-    accp_sock = accept(listen_sock, (struct sockaddr *)&cliaddr, addrlen);
+    accp_sock = accept(listen_sock, (struct sockaddr *)&cliaddr, &addrlen);
     // accept(소켓 디스크립터, struct sockaddr* 형 연결된 클라이언트 주소와 포트 담기는 구조체, sockaddr 구조체 크기)
     while (1) {                         // accp_sock 은 연결된 클라이언트의 소켓정보를 가짐
         recv(accp_sock, command, 5, 0); // 명령어 수신
