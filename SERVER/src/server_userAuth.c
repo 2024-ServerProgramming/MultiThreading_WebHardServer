@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 void sign_in(CliSession *cliS){
@@ -27,11 +28,13 @@ void sign_in(CliSession *cliS){
         return;
     }
 
+    pthread_mutex_lock(&m_lock);
     FILE *fp = fopen("user.config", "r");
     if(fp == NULL){
         perror("user.config");
         return;
     }
+    pthread_mutex_unlock(&m_lock);
 
     char line[BUFSIZE];
     int login_success = 0;
@@ -71,6 +74,7 @@ void create_directory(const char *username){
 }
 
 void sign_up(CliSession *cliS){
+    pthread_mutex_lock(&m_lock);
     User s;
     char buf[BUFSIZE];
 
@@ -90,14 +94,21 @@ void sign_up(CliSession *cliS){
     FILE *fp = fopen("user.config", "a");
     if(fp == NULL){
         perror("Failed to open user.config");
+        pthread_mutex_unlock(&m_lock);
         return;
     }
+    
     fprintf(fp, "%s:%s:%s\n", s.id, s.pw, s.name);
     fclose(fp);
+    pthread_mutex_unlock(&m_lock);
 
     create_directory(s.id);
     list_file(cliS);
+
+    sleep(10);  // 대기용
+
     send(cliS->cli_data, buf, strlen(buf), 0);
+
 }
 
 void list_file(CliSession *cliS){
@@ -126,4 +137,5 @@ void list_file(CliSession *cliS){
     closedir(dir);
 
     send(cliS->cli_data, buf, strlen(buf), 0);
+    // 일단 디렉터리 보여주고 이후엔 찬혁님 기능
 }
