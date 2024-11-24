@@ -88,18 +88,17 @@ void sign_up(int sd){
 
     strcpy(buf, "SignUp");
     send(sd, buf, strlen(buf), 0);
-    printf("Sending command: %s\n", buf); //디버깅
 
     sprintf(buf, "%s:%s:%s", s.id, s.pw, s.name);
     send(sd, buf, strlen(buf), 0);
-    printf("Sending data: %s\n", buf); //디버깅
 
     int n = recv(sd, buf, sizeof(buf) - 1, 0);
     if (n == -1) {
         perror("recv");
         exit(1);
     }
-
+    
     buf[n] = '\0';
-    printf("%s\n", buf);    // 서버에서 보낸 "User registered successfully" 출력
+    printf("%s\n", buf);  
+    system("clear");
 }

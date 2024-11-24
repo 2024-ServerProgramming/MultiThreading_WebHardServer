@@ -2,7 +2,6 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <pthread.h>
 
 void handle_client(int cli){
     char buf[BUFSIZE];
@@ -28,9 +27,11 @@ void handle_client(int cli){
             }
         }
         else {
-            printf("Unknown command: %s\n", buf);
-            snprintf(buf, sizeof(buf), "Unknown command: %s", buf);
+            char temp_buf[BUFSIZE];
+            snprintf(temp_buf, sizeof(temp_buf), "Unknown command: %s", buf);
+            strncpy(buf, temp_buf, sizeof(buf) - 1);
             send(cliS.cli_data, buf, strlen(buf), 0);
+            memset(buf, 0, sizeof(buf)); 
         }
     }
 
@@ -73,8 +74,12 @@ int main(void){
         }
 
         srand(time(NULL));
-        //연결확인 주석: printf("server is listening on port %d\n", PORTNUM);
 
+        if(pthread_mutex_init(&m_lock, NULL) != 0){
+            perror("Mutex Init Failure");
+            return 1;
+        }
+        
         while(1){
             int *new_sock = malloc(sizeof(int));
             *new_sock = accept(sd, (struct sockaddr *)&cli, &clientlen);
@@ -102,6 +107,5 @@ void *client_thread(void *arg){
 
     handle_client(cli_sock);
 
-    close(cli_sock);
     pthread_exit(NULL);
 }
