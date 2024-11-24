@@ -64,7 +64,7 @@ void remove_expired_sessions(){
 	}
 }
 
-/*세션 디버깅용 함수 */
+/* 세션 디버깅용 함수 
 void print_session(){
     Session *cur = session_list;
     printf("Active sessions:\n");
@@ -73,3 +73,5 @@ void print_session(){
         cur = cur->next;
     }
 }
+
+*/

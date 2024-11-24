@@ -3,7 +3,7 @@
 
 #include "session.h"
 #include "server_config.h"
-
+#include <pthread.h>
 #define MAX 10
 
 /* 사용자 정보 구조체 */
@@ -20,6 +20,7 @@ typedef struct {
     Session *session;   // 세션 포인터 (로그인된 사용자의 세션 참조)
 } CliSession;
 
+extern pthread_mutex_t m_lock;
 
 /* 서버 관련 함수 */
 void sign_in(CliSession *session);

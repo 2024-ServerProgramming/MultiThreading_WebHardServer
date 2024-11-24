@@ -23,7 +23,7 @@ void client_menu(int sd){
     }
 }
 
-void list_files(int sd) {
+void list_files(int sd){
     char buf[256];
     int n;
 
@@ -52,7 +52,7 @@ int main(){
     memset((char *)&sin, '\0', sizeof(sin));
     sin.sin_family = AF_INET;
     sin.sin_port = htons(PORTNUM);
-    sin.sin_addr.s_addr = inet_addr("127.0.0.1");
+    sin.sin_addr.s_addr = inet_addr("****");
 
     if(inet_pton(AF_INET, "", &sin.sin_addr) == -1){
         perror("Invalid address");
