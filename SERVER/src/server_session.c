@@ -68,7 +68,7 @@ void remove_expired_sessions(){
 void print_session(){
     Session *cur = session_list;
     printf("Active sessions:\n");
-    while (cur != NULL) {
+    while (cur != NULL){
         printf("User ID: %s, Session ID: %s, Last Active: %ld\n", cur->user_id, cur->session_id, cur->last_active);
         cur = cur->next;
     }
