@@ -35,7 +35,7 @@ void handle_client(int cli){
         }
     }
 
-    if (rsize == 0) {
+    if (rsize == 0){
         printf("Client disconnected\n");
     } 
     else if(rsize == -1){
@@ -90,7 +90,7 @@ int main(void){
             }
 
             pthread_t tid;
-            if (pthread_create(&tid, NULL, client_thread, (void *)new_sock) != 0) {
+            if(pthread_create(&tid, NULL, client_thread, (void *)new_sock) != 0){
                 perror("pthread_create");
                 free(new_sock);
             }
@@ -106,6 +106,5 @@ void *client_thread(void *arg){
     free(arg);
 
     handle_client(cli_sock);
-
     pthread_exit(NULL);
 }
