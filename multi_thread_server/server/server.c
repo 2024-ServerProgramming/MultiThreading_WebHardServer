@@ -30,14 +30,19 @@ void *receive_file_range(void *arg) {
     char buf[BUFSIZE];
     size_t bytes_left = data->end - data->start;
 
-    lseek(data->file_fd, data->start, SEEK_SET);
     while (bytes_left > 0) {
         size_t to_read = bytes_left > BUFSIZE ? BUFSIZE : bytes_left;
         ssize_t nbytes = recv(data->client_sock, buf, to_read, 0);
         if (nbytes <= 0)
             break;
 
-        write(data->file_fd, buf, nbytes);
+        // 파일 쓰기 작업 보호
+        pthread_mutex_lock(&file_mutex);
+        lseek(data->file_fd, data->start, SEEK_SET); // 지정된 위치로 파일 포인터 이동
+        write(data->file_fd, buf, nbytes);           // 데이터 쓰기
+        data->start += nbytes;                       // 시작 위치 갱신
+        pthread_mutex_unlock(&file_mutex);
+
         bytes_left -= nbytes;
     }
     return NULL;
@@ -49,14 +54,19 @@ void *send_file_range(void *arg) {
     char buf[BUFSIZE];
     size_t bytes_left = data->end - data->start;
 
-    lseek(data->file_fd, data->start, SEEK_SET);
     while (bytes_left > 0) {
         size_t to_read = bytes_left > BUFSIZE ? BUFSIZE : bytes_left;
-        ssize_t nbytes = read(data->file_fd, buf, to_read);
+
+        pthread_mutex_lock(&file_mutex);
+        lseek(data->file_fd, data->start, SEEK_SET);        // 지정된 위치로 파일 포인터 이동
+        ssize_t nbytes = read(data->file_fd, buf, to_read); // 파일 읽기
+        pthread_mutex_unlock(&file_mutex);
+
         if (nbytes <= 0)
             break;
+        send(data->client_sock, buf, nbytes, 0); // 클라이언트로 데이터 전송
 
-        send(data->client_sock, buf, nbytes, 0);
+        data->start += nbytes; // 시작 위치 갱신
         bytes_left -= nbytes;
     }
     return NULL;
