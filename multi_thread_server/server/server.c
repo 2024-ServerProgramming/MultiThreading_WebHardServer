@@ -4,224 +4,216 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
-#define BUFSIZE 1024
-#define THREAD_COUNT 4
-#define MAX_CLIENTS 5
+#define MAXLINE 512
+#define BUFSIZE 256
+typedef struct offset_info {
+    int fd;
+    int fd_m;
+    off_t start; // 시작부분
+    off_t end;   // 마지막 부분
+} OFFIN;
 
-pthread_mutex_t file_mutex;
+void *process_range(void *off) {
+    OFFIN *off_info = (OFFIN *)off;
+    ;
+    int fd = off_info->fd;
+    off_t start = off_info->start;
+    off_t end = off_info->end;
+    int fd_m = off_info->fd_m;
 
-typedef struct {
-    int client_sock;
-    size_t start, end;
-    int file_fd;
-    char *buffer;
-} thread_data_t;
+    lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
 
-typedef struct {
-    int client_id;
-    int client_sock;
-} client_data_t;
+    off_t remaining = end - start;
+    char buffer[1024];
 
-// 서버가 파일 범위를 수신
-void *receive_file_range(void *arg) {
-    thread_data_t *data = (thread_data_t *)arg;
+    while (remaining > 0) {
+        // 반복문 한번당 읽어야하는 바이트
+        ssize_t byte_to_read = (remaining < 1024) ? remaining : 1024;
+        // 실제로 읽어서 버퍼에 저장한 바이트
+        ssize_t bytes_read = read(fd, buffer, byte_to_read);
+        // 버퍼에 저장한거 + 바이트 읽은거 구조체에 다 저장해서 send로 보냄.
+        // 클라이언트는 send 한거 읽고 범위확인해서 클라이언트 파일에 write
+
+        remaining -= bytes_read; // 읽은만큼 총 남은 비트에서 까줌
+    }
+}
+
+void errquit(const char *mesg) {
+    perror(mesg);
+    exit(1);
+}
+
+int tcp_listen(int host, int port, int backlog) {
+    int sd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in servaddr;
+
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(host);
+    servaddr.sin_port = htons(port);
+
+    if (bind(sd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+        errquit("bind failed...");
+    }
+
+    if (listen(sd, backlog) < 0) {
+        errquit("listen failed...");
+    }
+
+    return sd;
+}
+
+void *client_handler(void *input) {
+    int client_sock = *(int *)input;
+    free(input);
+
+    char command[5]; // 명령어 저장
+    char filename[MAXLINE];
     char buf[BUFSIZE];
-    size_t bytes_left = data->end - data->start;
-
-    while (bytes_left > 0) {
-        size_t to_read = bytes_left > BUFSIZE ? BUFSIZE : bytes_left;
-        ssize_t nbytes = recv(data->client_sock, buf, to_read, 0);
-        if (nbytes <= 0)
-            break;
-
-        // 파일 쓰기 작업 보호
-        pthread_mutex_lock(&file_mutex);
-        lseek(data->file_fd, data->start, SEEK_SET); // 지정된 위치로 파일 포인터 이동
-        write(data->file_fd, buf, nbytes);           // 데이터 쓰기
-        data->start += nbytes;                       // 시작 위치 갱신
-        pthread_mutex_unlock(&file_mutex);
-
-        bytes_left -= nbytes;
-    }
-    return NULL;
-}
-
-// 서버가 파일 범위를 전송
-void *send_file_range(void *arg) {
-    thread_data_t *data = (thread_data_t *)arg;
-    char buf[BUFSIZE];
-    size_t bytes_left = data->end - data->start;
-
-    while (bytes_left > 0) {
-        size_t to_read = bytes_left > BUFSIZE ? BUFSIZE : bytes_left;
-
-        pthread_mutex_lock(&file_mutex);
-        lseek(data->file_fd, data->start, SEEK_SET);        // 지정된 위치로 파일 포인터 이동
-        ssize_t nbytes = read(data->file_fd, buf, to_read); // 파일 읽기
-        pthread_mutex_unlock(&file_mutex);
-
-        if (nbytes <= 0)
-            break;
-        send(data->client_sock, buf, nbytes, 0); // 클라이언트로 데이터 전송
-
-        data->start += nbytes; // 시작 위치 갱신
-        bytes_left -= nbytes;
-    }
-    return NULL;
-}
-
-void handle_put(int client_sock, const char *filename) {
-    size_t total_file_size;
-    recv(client_sock, &total_file_size, sizeof(size_t), 0);
-
-    printf("[PUT] Receiving file '%s' of size %zu bytes\n", filename, total_file_size);
-
-    int file_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (file_fd < 0) {
-        perror("Failed to create file");
-        return;
-    }
-
-    pthread_t threads[THREAD_COUNT];
-    thread_data_t thread_data[THREAD_COUNT];
-    size_t range_size = total_file_size / THREAD_COUNT;
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        thread_data[i].client_sock = client_sock;
-        thread_data[i].start = i * range_size;
-        thread_data[i].end = (i == THREAD_COUNT - 1) ? total_file_size : (i + 1) * range_size;
-        thread_data[i].file_fd = file_fd;
-
-        pthread_create(&threads[i], NULL, receive_file_range, &thread_data[i]);
-    }
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    close(file_fd);
-    printf("[PUT] File '%s' received and saved.\n", filename);
-}
-
-void handle_get(int client_sock, const char *filename) {
-    int file_fd = open(filename, O_RDONLY);
-    if (file_fd < 0) {
-        perror("Failed to open file");
-        size_t zero = 0;
-        send(client_sock, &zero, sizeof(size_t), 0); // 파일 크기를 0으로 전송
-        return;
-    }
-
-    size_t total_file_size = lseek(file_fd, 0, SEEK_END);
-    lseek(file_fd, 0, SEEK_SET);
-    send(client_sock, &total_file_size, sizeof(size_t), 0);
-
-    printf("[GET] Sending file '%s' of size %zu bytes\n", filename, total_file_size);
-
-    pthread_t threads[THREAD_COUNT];
-    thread_data_t thread_data[THREAD_COUNT];
-    size_t range_size = total_file_size / THREAD_COUNT;
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        thread_data[i].client_sock = client_sock;
-        thread_data[i].start = i * range_size;
-        thread_data[i].end = (i == THREAD_COUNT - 1) ? total_file_size : (i + 1) * range_size;
-        thread_data[i].file_fd = file_fd;
-
-        pthread_create(&threads[i], NULL, send_file_range, &thread_data[i]);
-    }
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    close(file_fd);
-    printf("[GET] File '%s' sent to client.\n", filename);
-}
-
-void *handle_client(void *arg) {
-    client_data_t *client_data = (client_data_t *)arg;
-    char command[BUFSIZE], filename[BUFSIZE];
-
-    printf("[Client %d] Connected.\n", client_data->client_id);
+    int fd;               // 파일 디스크립터
+    unsigned fileSize;    // 파일 송수신할 때 총 파일 사이즈
+    unsigned sentSize;    // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
+    unsigned recvSize;    // 파일 받은 사이즈
+    unsigned netFileSize; // size_t == unsigned, 네트워크 전송용
+    int isnull;           // 파일 있는지 없는지 여부 판별용 변수
 
     while (1) {
-        recv(client_data->client_sock, command, sizeof(command), 0);
+        memset(command, 0, sizeof(command)); // command 버퍼 비우기
 
-        if (strncmp(command, "put", 3) == 0) {
-            recv(client_data->client_sock, filename, sizeof(filename), 0);
-            handle_put(client_data->client_sock, filename);
-        } else if (strncmp(command, "get", 3) == 0) {
-            recv(client_data->client_sock, filename, sizeof(filename), 0);
-            handle_get(client_data->client_sock, filename);
-        } else if (strncmp(command, "quit", 4) == 0) {
-            printf("[Client %d] Disconnected.\n", client_data->client_id);
-            close(client_data->client_sock);
-            free(client_data);
-            return NULL;
+        if (recv(client_sock, command, sizeof(command), 0) <= 0) { // recv 이상한 값 오는 경우
+            printf("client disconnected.\n");
+            break;
+        }
+
+        if (strcmp(command, "get") == 0) {         // 사용자 입장에서 다운로드
+            memset(filename, 0, sizeof(filename)); // filename 버퍼 비우기
+
+            if (recv(client_sock, filename, sizeof(filename), 0) <= 0) { // recv 에러 처리 1
+                printf("receiving filename failed\n");
+                break;
+            }
+
+            printf("Client(%d): Requesting file [%s]\n", client_sock, filename); // 디버깅용...
+
+            fd = open(filename, O_RDONLY);
+            if (fd < 0) {
+                perror("file open failed");
+                isnull = 1;
+                send(client_sock, &isnull, sizeof(isnull), 0); // 파일 열기 실패했다고 전송 2
+                continue;
+            }
+
+            isnull = 0;
+            send(client_sock, &isnull, sizeof(isnull), 0); // 파일 열기 성공했다고 전송 2
+
+            /* 자, 여기서부터 잘 확인하기 */
+            fileSize = lseek(fd, 0, SEEK_END);
+            lseek(fd, 0, SEEK_SET);
+            netFileSize = htonl(fileSize);
+            send(client_sock, &netFileSize, sizeof(netFileSize), 0); // 파일 사이즈 전송 3
+            /* 여기까지 잘 작동하는가? */
+
+            OFFIN off[4];
+            pthread_t pthreads[4];
+
+            sentSize = 0; // 여기서 파일 전송 시작하는데 sentSize가 fileSize일 때 까지 전송함
+            while (sentSize < fileSize) {
+                recvSize = read(fd, buf, BUFSIZE);
+                if (recvSize <= 0)
+                    break;
+                send(client_sock, buf, recvSize, 0); // 파일 전송 4
+                sentSize += recvSize;
+            }
+
+            printf("File [%s] sent to client (%u bytes)\n", filename, fileSize);
+            close(fd);
+
+        } else if (strcmp(command, "put") == 0) {
+            memset(filename, 0, sizeof(filename));
+
+            if (recv(client_sock, filename, sizeof(filename), 0) <= 0) { // 파일 이름 받기 1
+                printf("receiving filename failed\n");
+                break;
+            }
+
+            printf("Client(%d): Uploading file [%s]\n", client_sock, filename);
+
+            fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) {
+                perror("file creation failed");
+                break;
+            }
+
+            if (recv(client_sock, &netFileSize, sizeof(netFileSize), 0) <= 0) { // 파일 크기 수신 2
+                printf("receiving file size failed\n");
+                close(fd);
+                break;
+            }
+
+            // 네트워크 바이트 순서를 호스트 바이트 순서로 변환
+            fileSize = ntohl(netFileSize);
+            printf("Receiving file [%s] (%u bytes)\n", filename, fileSize); // 파일 정보 출력
+
+            sentSize = 0;
+            while (sentSize < fileSize) {
+                recvSize = recv(client_sock, buf, BUFSIZE, 0); // 파일 순서대로 받기 3
+                if (recvSize <= 0)
+                    break;
+                write(fd, buf, recvSize);
+                sentSize += recvSize;
+            }
+
+            if (sentSize == fileSize) {
+                printf("File [%s] received successfully.\n", filename);
+            } else {
+                printf("File [%s] transfer incomplete.\n", filename);
+            }
+            close(fd);
+
         } else {
-            printf("[Client %d] Unknown command: %s\n", client_data->client_id, command);
+            printf("Client(%d): Invalid command [%s]\n", client_sock, command);
         }
     }
+
+    close(client_sock);
+    return NULL;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
+    struct sockaddr_in cliaddr;
+    int listen_sock, *client_sock;
+    socklen_t addrlen;
+    pthread_t tid;
 
-    int server_sock, client_sock;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_len = sizeof(client_addr);
-    pthread_t client_threads[MAX_CLIENTS];
-    int client_count = 0;
+    listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
+    printf("Server listening on port 8080...\n");
 
-    int port = atoi(argv[1]);
-    pthread_mutex_init(&file_mutex, NULL);
+    while (1) {
+        addrlen = sizeof(cliaddr);
+        client_sock = malloc(sizeof(int));
 
-    server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sock == -1) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
+        *client_sock = accept(listen_sock, (struct sockaddr *)&cliaddr, &addrlen);
+        if (*client_sock < 0) {
+            errquit("accept failed");
+            free(client_sock);
+            continue;
+        }
 
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(port);
+        printf("Client connected (socket: %d)\n", *client_sock);
 
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("Bind failed");
-        close(server_sock);
-        exit(EXIT_FAILURE);
-    }
-
-    if (listen(server_sock, MAX_CLIENTS) == -1) {
-        perror("Listen failed");
-        close(server_sock);
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Server listening on port %d...\n", port);
-
-    while ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &addr_len)) > 0) {
-        client_data_t *client_data = malloc(sizeof(client_data_t));
-        client_data->client_id = client_count;
-        client_data->client_sock = client_sock;
-
-        pthread_create(&client_threads[client_count++], NULL, handle_client, client_data);
-
-        if (client_count >= MAX_CLIENTS) {
-            for (int i = 0; i < client_count; i++) {
-                pthread_join(client_threads[i], NULL);
-            }
-            client_count = 0;
+        if (pthread_create(&tid, NULL, client_handler, (void *)client_sock) != 0) {
+            errquit("Thread creation failed");
+            close(*client_sock);
+            free(client_sock);
+        } else {
+            pthread_detach(tid);
         }
     }
 
-    close(server_sock);
-    pthread_mutex_destroy(&file_mutex);
+    close(listen_sock);
     return 0;
 }

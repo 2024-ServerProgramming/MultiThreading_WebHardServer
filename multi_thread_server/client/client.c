@@ -1,189 +1,169 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
-#define BUFSIZE 1024
-#define THREAD_COUNT 4
+#define MAXLINE 512
+#define BUFSIZE 256
 
-typedef struct {
-    int thread_id;
-    int client_sock;
-    const char *filename;
-    size_t start, end;
-} thread_data_t;
-
-// 파일의 특정 범위를 서버에 전송
-void *send_file_range(void *arg) {
-    thread_data_t *data = (thread_data_t *)arg;
-    char buf[BUFSIZE];
-    int file_fd = open(data->filename, O_RDONLY);
-    if (file_fd < 0) {
-        perror("Failed to open file");
-        return NULL;
-    }
-
-    lseek(file_fd, data->start, SEEK_SET);
-    size_t bytes_left = data->end - data->start;
-
-    while (bytes_left > 0) {
-        size_t to_read = bytes_left > BUFSIZE ? BUFSIZE : bytes_left;
-        ssize_t nbytes = read(file_fd, buf, to_read);
-        if (nbytes <= 0)
-            break;
-
-        send(data->client_sock, buf, nbytes, 0);
-        bytes_left -= nbytes;
-    }
-
-    close(file_fd);
-    return NULL;
-}
-
-// 파일의 특정 범위를 서버로부터 수신
-void *receive_file_range(void *arg) {
-    thread_data_t *data = (thread_data_t *)arg;
-    char buf[BUFSIZE];
-    int file_fd = open(data->filename, O_WRONLY | O_CREAT, 0644);
-    if (file_fd < 0) {
-        perror("Failed to create file");
-        return NULL;
-    }
-
-    lseek(file_fd, data->start, SEEK_SET);
-    size_t bytes_left = data->end - data->start;
-
-    while (bytes_left > 0) {
-        size_t to_read = bytes_left > BUFSIZE ? BUFSIZE : bytes_left;
-        ssize_t nbytes = recv(data->client_sock, buf, to_read, 0);
-        if (nbytes <= 0)
-            break;
-
-        write(file_fd, buf, nbytes);
-        bytes_left -= nbytes;
-    }
-
-    close(file_fd);
-    return NULL;
-}
-
-void send_put(int client_sock, const char *filename) {
-    int file_fd = open(filename, O_RDONLY);
-    if (file_fd < 0) {
-        perror("Failed to open file");
-        return;
-    }
-
-    // 파일 크기 전송
-    size_t file_size = lseek(file_fd, 0, SEEK_END);
-    lseek(file_fd, 0, SEEK_SET);
-    send(client_sock, &file_size, sizeof(size_t), 0);
-
-    // 4개의 쓰레드로 파일 전송
-    pthread_t threads[THREAD_COUNT];
-    thread_data_t thread_data[THREAD_COUNT];
-    size_t range_size = file_size / THREAD_COUNT;
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        thread_data[i].thread_id = i;
-        thread_data[i].client_sock = client_sock;
-        thread_data[i].filename = filename;
-        thread_data[i].start = i * range_size;
-        thread_data[i].end = (i == THREAD_COUNT - 1) ? file_size : (i + 1) * range_size;
-
-        pthread_create(&threads[i], NULL, send_file_range, &thread_data[i]);
-    }
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    printf("[PUT] File '%s' uploaded to server.\n", filename);
-}
-
-void send_get(int client_sock, const char *filename) {
-    // 서버에서 파일 크기 수신
-    size_t file_size;
-    recv(client_sock, &file_size, sizeof(size_t), 0);
-
-    if (file_size == 0) {
-        printf("[GET] File '%s' not found on server.\n", filename);
-        return;
-    }
-
-    printf("[GET] Receiving file '%s' of size %zu bytes\n", filename, file_size);
-
-    // 4개의 쓰레드로 파일 수신
-    pthread_t threads[THREAD_COUNT];
-    thread_data_t thread_data[THREAD_COUNT];
-    size_t range_size = file_size / THREAD_COUNT;
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        thread_data[i].thread_id = i;
-        thread_data[i].client_sock = client_sock;
-        thread_data[i].filename = filename;
-        thread_data[i].start = i * range_size;
-        thread_data[i].end = (i == THREAD_COUNT - 1) ? file_size : (i + 1) * range_size;
-
-        pthread_create(&threads[i], NULL, receive_file_range, &thread_data[i]);
-    }
-
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-    printf("[GET] File '%s' downloaded from server.\n", filename);
+void errquit(const char *mesg) {
+    perror(mesg);
+    exit(1);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <server_ip> <port>\n", argv[0]);
-        exit(EXIT_FAILURE);
+    if (argc != 2) {
+        printf("./%s <server ip> 입력하시오...\n", argv[0]);
+        exit(1);
     }
 
     const char *server_ip = argv[1];
-    int port = atoi(argv[2]);
+    int sock;
+    struct sockaddr_in servaddr;
 
-    int client_sock = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in server_addr;
+    // 소켓 생성
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+        errquit("Socket creation failed");
 
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    inet_pton(AF_INET, server_ip, &server_addr.sin_addr);
-
-    if (connect(client_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("Connection failed");
-        exit(EXIT_FAILURE);
+    // 서버 주소 설정
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(8080);
+    if (inet_pton(AF_INET, server_ip, &servaddr.sin_addr) <= 0) {
+        errquit("invalid address\n");
     }
 
-    char command[BUFSIZE], filename[BUFSIZE];
-    while (1) {
-        printf("Enter command (put <filename>, get <filename>, quit): ");
-        fgets(command, BUFSIZE, stdin);
-        command[strcspn(command, "\n")] = '\0'; // Remove newline character
+    // 서버에 연결
+    if (connect(sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+        errquit("connect failed...");
+    }
+    printf("Connected to server at %s:8080\n", server_ip);
 
-        if (strncmp(command, "put", 3) == 0) {
-            send(client_sock, "put", 5, 0);
-            sscanf(command + 4, "%s", filename);
-            send(client_sock, filename, strlen(filename) + 1, 0);
-            send_put(client_sock, filename);
-        } else if (strncmp(command, "get", 3) == 0) {
-            send(client_sock, "get", 5, 0);
-            sscanf(command + 4, "%s", filename);
-            send(client_sock, filename, strlen(filename) + 1, 0);
-            send_get(client_sock, filename);
-        } else if (strcmp(command, "quit") == 0) {
-            send(client_sock, "quit", 5, 0);
-            printf("Disconnecting...\n");
+    while (1) {
+        char command[5]; // 명령어 저장
+        char filename[MAXLINE];
+        int fd;            // 파일 디스크립터
+        unsigned sentSize; // 파일 받은 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
+        unsigned recvSize; // 파일 받은 사이즈
+        unsigned fileSize; // 총 파일 사이즈
+        unsigned netFileSize; // size_t == unsined 총 파일 사이즈, 네트워크 전송용
+        char buf[BUFSIZE];
+        int isnull; // 파일 있는지 없는지 여부 판별용 변수
+
+        printf("\nEnter command (get/put/exit): ");
+        fgets(command, sizeof(command), stdin);
+        command[strcspn(command, "\n")] = '\0';
+
+        // 종료 명령 처리
+        if (strcmp(command, "exit") == 0) {
+            printf("exiting client.\n");
             break;
+        }
+
+        // 서버로 명령어 전송
+        if (send(sock, command, strlen(command), 0) <= 0) {
+            errquit("send cmd failed...");
+            break;
+        }
+
+        if (strcmp(command, "get") == 0) { // 다운로드
+            /*파일 이름 입력 부분*/
+            printf("Enter filename to download: ");
+            fgets(filename, sizeof(filename), stdin);
+            filename[strcspn(filename, "\n")] = '\0'; // 아... 이런게 있네
+            /* 여기까지 */
+
+            send(sock, filename, strlen(filename), 0); // 파일 이름 전송 1
+
+            if (recv(sock, &isnull, sizeof(isnull), 0) <= 0) { // 파일 이름 있는지 없는지 2
+                perror("receiving file existence fail");
+                continue;
+            }
+
+            if (isnull == 1) {
+                printf("file not found on server.\n");
+                continue;
+            }
+
+            if (recv(sock, &netFileSize, sizeof(netFileSize), 0) <= 0) { // 전달 받은 파일 사이즈 3
+                perror("receiving file size fail");
+                continue;
+            }
+
+            fileSize = ntohl(netFileSize);
+            printf("downloading file [%s] (%u bytes)\n", filename, fileSize);
+
+            fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) {
+                errquit("file open failed");
+                continue;
+            }
+
+            sentSize = 0;
+            while (sentSize < fileSize) {
+                recvSize = recv(sock, buf, BUFSIZE, 0); // 파일 전송 받기 4
+                if (recvSize <= 0)
+                    break;
+                write(fd, buf, recvSize);
+                sentSize += recvSize;
+            }
+
+            if (sentSize == fileSize) {
+                printf("file [%s] downloaded successfully.\n", filename);
+            } else {
+                printf("file [%s] download incomplete.\n", filename);
+            }
+            close(fd);
+
+        } else if (strcmp(command, "put") == 0) {
+            memset(filename, 0, sizeof(filename));
+
+            /* 업로드할 파일 이름 입력 */
+            printf("enter filename to upload: ");
+            fgets(filename, sizeof(filename), stdin);
+            filename[strcspn(filename, "\n")] = '\0'; // 이건 신이야...
+            /* 여기까지 */
+
+            fd = open(filename, O_RDONLY);
+            if (fd < 0) {
+                perror("file open failed");
+                isnull = 0;
+                continue;
+            }
+
+            send(sock, filename, strlen(filename), 0); // 파일 이름 전송 1
+
+            fileSize = lseek(fd, 0, SEEK_END);
+            lseek(fd, 0, SEEK_SET);
+            netFileSize = htonl(fileSize);
+            send(sock, &netFileSize, sizeof(netFileSize), 0); // 파일 크기 송신 2
+
+            printf("Uploading file [%s] (%u bytes)\n", filename, fileSize); // 업로드할 파일 정보 출력
+
+            int sentSize = 0;
+            while (sentSize < fileSize) {
+                recvSize = read(fd, buf, BUFSIZE);
+                if (recvSize <= 0)
+                    break;
+                send(sock, buf, recvSize, 0); // 파일 순서대로 보내기 3
+                sentSize += recvSize;
+            }
+
+            if (sentSize == fileSize) {
+                printf("file [%s] uploaded successfully.\n", filename);
+            } else {
+                printf("file [%s] upload incomplete.\n", filename);
+            }
+            close(fd);
         } else {
-            printf("Unknown command: %s\n", command);
+            printf("invalid command. Use 'get', 'put', or 'exit'.\n");
         }
     }
 
-    close(client_sock);
+    close(sock);
     return 0;
 }
