@@ -51,8 +51,6 @@ void start_index(int cli_sock){
         }
         else if(strcmp(buf, "SignIn") == 0){
             sign_in(&cliS);
-        }
-        else if(strcmp(buf, "ListFile") == 0){
             if (cliS.is_login) {
                 client_handle(&cliS);
                 break;
@@ -78,35 +76,35 @@ void start_index(int cli_sock){
 }
 
 int main(void){
-        struct sockaddr_in cli;
-        int listen_sock;
-        socklen_t cli_len = sizeof(cli);
+    struct sockaddr_in cli;
+    int listen_sock;
+    socklen_t cli_len = sizeof(cli);
 
-        /* 소켓 생성 및 연결 */
-        listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
+    /* 소켓 생성 및 연결 */
+    listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
 
-        srand(time(NULL)); // 접속 시간을 위한 난수 생성
+    srand(time(NULL)); // 접속 시간을 위한 난수 생성
 
-        if(pthread_mutex_init(&m_lock, NULL) != 0){ 
-            perror("Mutex Init Failure");
-            return 1;
+    if(pthread_mutex_init(&m_lock, NULL) != 0){ 
+        perror("Mutex Init Failure");
+        return 1;
+    }
+    
+    while(1){
+        int *cli_sock = malloc(sizeof(int));
+        *cli_sock = accept(listen_sock, (struct sockaddr *)&cli, &cli_len);
+        if(*cli_sock < 0){
+            perror("Accept");
+            free(cli_sock);
+            continue;
         }
-        
-        while(1){
-            int *cli_sock = malloc(sizeof(int));
-            *cli_sock = accept(listen_sock, (struct sockaddr *)&cli, &cli_len);
-            if(*cli_sock < 0){
-                perror("Accept");
-                free(cli_sock);
-                continue;
-            }
 
-            pthread_t tid;
-            if(pthread_create(&tid, NULL, client_thread, (void *)cli_sock) != 0){
-                perror("pthread_create");
-                free(cli_sock);
-            }
-            pthread_detach(tid);
+        pthread_t tid;
+        if(pthread_create(&tid, NULL, client_thread, (void *)cli_sock) != 0){
+            perror("pthread_create");
+            free(cli_sock);
+        }
+        pthread_detach(tid);
     }
 
     close(listen_sock);
