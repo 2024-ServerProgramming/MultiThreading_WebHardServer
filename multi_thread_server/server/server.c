@@ -10,20 +10,22 @@
 
 #define MAXLINE 512
 #define BUFSIZE 256
+
+pthread_mutex_t socket_lock;
+
 typedef struct offset_info {
     int fd;
-    int fd_m;
+    int client_sock;
     off_t start; // 시작부분
     off_t end;   // 마지막 부분
 } OFFIN;
 
 void *process_range(void *off) {
     OFFIN *off_info = (OFFIN *)off;
-    ;
     int fd = off_info->fd;
     off_t start = off_info->start;
     off_t end = off_info->end;
-    int fd_m = off_info->fd_m;
+    int client_sock = off_info->client_sock;
 
     lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
 
@@ -37,7 +39,15 @@ void *process_range(void *off) {
         ssize_t bytes_read = read(fd, buffer, byte_to_read);
         // 버퍼에 저장한거 + 바이트 읽은거 구조체에 다 저장해서 send로 보냄.
         // 클라이언트는 send 한거 읽고 범위확인해서 클라이언트 파일에 write
-
+        pthread_mutex_lock(&socket_lock);
+        send(client_sock, buffer, bytes_read, 0);
+        // printf("send %ld bytes\n", bytes_read);
+        printf("send buffer content %s\n", buffer);
+        // pthread_mutex_unlock(&socket_lock);
+        // ssize_t bytes_read1 = read(fd, buffer, byte_to_read);
+        // if (bytes_read1 == 0) { // 파일의 끝에 도달
+        //     break;
+        // }
         remaining -= bytes_read; // 읽은만큼 총 남은 비트에서 까줌
     }
 }
@@ -121,12 +131,20 @@ void *client_handler(void *input) {
             pthread_t pthreads[4];
 
             sentSize = 0; // 여기서 파일 전송 시작하는데 sentSize가 fileSize일 때 까지 전송함
-            while (sentSize < fileSize) {
-                recvSize = read(fd, buf, BUFSIZE);
-                if (recvSize <= 0)
-                    break;
-                send(client_sock, buf, recvSize, 0); // 파일 전송 4
-                sentSize += recvSize;
+            // 여기 바꿔야함 다중 쓰레드로
+            for (int i = 0; i < 4; i++) { // 파일을 읽어들여서 4등분으로 나누기
+                off[i].start = 0 + (fileSize / 4) * i;
+                off[i].end = (fileSize / 4) * (i + 1);
+                off[i].fd = fd;
+                off[i].client_sock = client_sock;
+            }
+
+            for (int i = 0; i < 4; i++) {
+                pthread_create(&pthreads[i], NULL, process_range, &off[i]);
+            }
+
+            for (int i = 0; i < 4; i++) {
+                pthread_join(pthreads[i], NULL);
             }
 
             printf("File [%s] sent to client (%u bytes)\n", filename, fileSize);
@@ -159,6 +177,7 @@ void *client_handler(void *input) {
             printf("Receiving file [%s] (%u bytes)\n", filename, fileSize); // 파일 정보 출력
 
             sentSize = 0;
+
             while (sentSize < fileSize) {
                 recvSize = recv(client_sock, buf, BUFSIZE, 0); // 파일 순서대로 받기 3
                 if (recvSize <= 0)
@@ -189,6 +208,7 @@ int main(int argc, char *argv[]) {
     socklen_t addrlen;
     pthread_t tid;
 
+    pthread_mutex_init(&socket_lock, NULL);
     listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
     printf("Server listening on port 8080...\n");
 
@@ -213,7 +233,7 @@ int main(int argc, char *argv[]) {
             pthread_detach(tid);
         }
     }
-
+    pthread_mutex_destroy(&socket_lock);
     close(listen_sock);
     return 0;
 }

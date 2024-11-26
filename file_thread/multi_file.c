@@ -17,7 +17,7 @@ void *process_range(void *off) {
     int fd = off_info->fd;
     off_t start = off_info->start;
     off_t end = off_info->end;
-    int fd_m = off_info->fd_m;
+    int fd_m = off_info->fd_m; // 이건 필요없음
 
     lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
 
