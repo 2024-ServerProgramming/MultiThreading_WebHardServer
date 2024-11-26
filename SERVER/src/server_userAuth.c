@@ -14,8 +14,7 @@ void sign_in(CliSession *cliS){
     User s;
 	char buf[BUFSIZE];
     memset(buf, 0, sizeof(buf));
-    
-    // 클라이언트로부터 로그인 정보 수신
+
     int n = recv(cliS->cli_data, buf, sizeof(buf) - 1, 0); 
     if(n == -1){
         perror("recv");
@@ -54,7 +53,6 @@ void sign_in(CliSession *cliS){
         snprintf(buf, sizeof(buf), "Login successful. Welcome, %s!", s.id);
         cliS->is_login = 1;
         cliS->session = create_session(s.id); 
-        //print_session(); 디버깅용
     } 
     else{
         strcpy(buf, "Invalid ID or password.");
@@ -111,6 +109,7 @@ void sign_up(CliSession *cliS){
     send(cliS->cli_data, buf, strlen(buf), 0);
 }
 
+/*
 void list_file(CliSession *cliS){
     if (cliS->session == NULL) {
         fprintf(stderr, "No active session\n");
@@ -147,5 +146,6 @@ void list_file(CliSession *cliS){
 
     send(cliS->cli_data, buf, strlen(buf), 0);
     memset(buf, 0, sizeof(buf));
-    // 일단 디렉터리 보여주고 이후엔 찬혁님 기능
 }
+
+*/
