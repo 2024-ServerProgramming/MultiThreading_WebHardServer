@@ -3,16 +3,47 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-void handle_client(int cli){
+int tcp_listen(int host, int port, int backlog){
+    int sd = socket(AF_INET, SOCK_STREAM, 0);
+
+     /* 포트 중복 사용 해결 */
+    int optvalue = 1;
+    setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optvalue, sizeof(optvalue));
+
+    if(sd == -1){
+            perror("socket");
+            exit(1);
+    }
+    struct sockaddr_in sin;
+
+    memset((char *)&sin, '\0', sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = htonl(host);
+    sin.sin_port = htons(port);
+
+    if(bind(sd, (struct sockaddr *)&sin, sizeof(sin))){
+            perror("Bind");
+            exit(1);
+    }
+
+    if(listen(sd, backlog) < 0){
+        perror("listen failed...");
+        exit(1);
+    }
+
+    return sd;
+}
+
+void start_index(int cli_sock){
     char buf[BUFSIZE];
     int rsize;
 
     CliSession cliS;
     memset(&cliS, 0, sizeof(CliSession));
-    cliS.cli_data = cli;
+    cliS.cli_data = cli_sock;
     cliS.is_login = 0;
 
-    while((rsize = recv(cli, buf, sizeof(buf), 0)) > 0){
+    while((rsize = recv(cli_sock, buf, sizeof(buf), 0)) > 0){
         buf[rsize] = '\0';
 
         if(strcmp(buf, "SignUp") == 0){
@@ -22,11 +53,12 @@ void handle_client(int cli){
             sign_in(&cliS);
         }
         else if(strcmp(buf, "ListFile") == 0){
-            if(cliS.is_login){
-                list_file(&cliS);
+            if (cliS.is_login) {
+                client_handle(&cliS);
+                break;
             }
         }
-        else {
+        else{
             char temp_buf[BUFSIZE];
             snprintf(temp_buf, sizeof(temp_buf), "Unknown command: %s", buf);
             strncpy(buf, temp_buf, sizeof(buf) - 1);
@@ -35,7 +67,7 @@ void handle_client(int cli){
         }
     }
 
-    if (rsize == 0){
+    if(rsize == 0){
         printf("Client disconnected\n");
     } 
     else if(rsize == -1){
@@ -46,58 +78,38 @@ void handle_client(int cli){
 }
 
 int main(void){
-        struct sockaddr_in sin, cli;
-        int sd, ns;
-        socklen_t clientlen = sizeof(cli);
+        struct sockaddr_in cli;
+        int listen_sock;
+        socklen_t cli_len = sizeof(cli);
 
-        if((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
-            perror("socket");
-            exit(1);
-        }
-        
-        int optvalue = 1;
-        setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optvalue, sizeof(optvalue));
+        /* 소켓 생성 및 연결 */
+        listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
 
-        memset((char *)&sin, '\0', sizeof(sin));
-        sin.sin_family = AF_INET;
-        sin.sin_port = htons(PORTNUM);
-        sin.sin_addr.s_addr = inet_addr("0.0.0.0");
+        srand(time(NULL)); // 접속 시간을 위한 난수 생성
 
-        if(bind(sd, (struct sockaddr *)&sin, sizeof(sin))){
-            perror("Bind");
-            exit(1);
-        }
-
-        if(listen(sd, 10)){
-            perror("Listen");
-            exit(1);
-        }
-
-        srand(time(NULL));
-
-        if(pthread_mutex_init(&m_lock, NULL) != 0){
+        if(pthread_mutex_init(&m_lock, NULL) != 0){ 
             perror("Mutex Init Failure");
             return 1;
         }
         
         while(1){
-            int *new_sock = malloc(sizeof(int));
-            *new_sock = accept(sd, (struct sockaddr *)&cli, &clientlen);
-            if (*new_sock < 0){
+            int *cli_sock = malloc(sizeof(int));
+            *cli_sock = accept(listen_sock, (struct sockaddr *)&cli, &cli_len);
+            if(*cli_sock < 0){
                 perror("Accept");
-                free(new_sock);
+                free(cli_sock);
                 continue;
             }
 
             pthread_t tid;
-            if(pthread_create(&tid, NULL, client_thread, (void *)new_sock) != 0){
+            if(pthread_create(&tid, NULL, client_thread, (void *)cli_sock) != 0){
                 perror("pthread_create");
-                free(new_sock);
+                free(cli_sock);
             }
             pthread_detach(tid);
     }
 
-    close(sd);
+    close(listen_sock);
     return 0;
 }
 
@@ -105,6 +117,6 @@ void *client_thread(void *arg){
     int cli_sock = *((int *)arg);
     free(arg);
 
-    handle_client(cli_sock);
+    start_index(cli_sock);
     pthread_exit(NULL);
 }

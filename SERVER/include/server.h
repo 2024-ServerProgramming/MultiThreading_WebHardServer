@@ -26,7 +26,7 @@ extern pthread_mutex_t m_lock;
 void sign_in(CliSession *session);
 void sign_up(CliSession *session);
 void list_file(CliSession *session);
-void handle_client(int cli);
+void *client_handle(CliSession *cliS);
 void *client_thread(void *arg);
 
 #endif 

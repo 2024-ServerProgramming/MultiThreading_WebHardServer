@@ -73,5 +73,4 @@ void print_session(){
         cur = cur->next;
     }
 }
-
 */

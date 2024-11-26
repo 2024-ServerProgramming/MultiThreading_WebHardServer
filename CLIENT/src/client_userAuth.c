@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <termios.h>
 
+
 // 비밀번호 입력 시 에코 비활성화 함수
 void get_password(char *password, size_t max_len){
     struct termios oldt, newt;
@@ -55,19 +56,11 @@ void sign_in(int sd){
     printf("%s\n", buf);
 
     if (strstr(buf, "Login successful") != NULL){
-        strcpy(buf, "ListFile");
-        send(sd, buf, strlen(buf), 0);
-        
-        n = recv(sd, buf, sizeof(buf) - 1, 0);
-        if(n == -1){
-            perror("recv");
-            exit(1);
-        }
-        buf[n] = '\0';
-        printf("Files:\n%s\n", buf);
+        client_control(sd);
+        (void)system("clear");
     }
     else{
-        return 0; 
+        return; 
     }
 }
 
@@ -100,5 +93,5 @@ void sign_up(int sd){
     
     buf[n] = '\0';
     printf("%s\n", buf);  
-    system("clear");
+    (void)system("clear");
 }

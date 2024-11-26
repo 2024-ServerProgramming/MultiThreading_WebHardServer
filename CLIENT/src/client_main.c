@@ -37,7 +37,14 @@ void list_files(int sd){
 }
 
 
-int main(){
+int main(int argc, char *argv[]){
+
+    if (argc != 2) {
+        printf("./%s <server ip> 입력하시오...\n", argv[0]);
+        exit(1);
+    }
+
+    const char *server_ip = argv[1]; 
     int sd;
     struct sockaddr_in sin;
 
@@ -49,12 +56,11 @@ int main(){
     int optvalue = 1;
     setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &optvalue, sizeof(optvalue));
 
-    memset((char *)&sin, '\0', sizeof(sin));
+    memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
-    sin.sin_port = htons(PORTNUM);
-    sin.sin_addr.s_addr = inet_addr("****");
+    sin.sin_port = htons(8080);
 
-    if(inet_pton(AF_INET, "", &sin.sin_addr) == -1){
+    if(inet_pton(AF_INET, server_ip, &sin.sin_addr) == -1){
         perror("Invalid address");
         exit(1);
     }

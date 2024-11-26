@@ -8,7 +8,7 @@ BINDIR = bin
 
 BIN = ./$(BINDIR)/clint.exe
 
-SRCS = ./$(SRCDIR)/client_main.c $(SRCDIR)/client_userAuth.c
+SRCS = ./$(SRCDIR)/client_main.c $(SRCDIR)/client_userAuth.c $(SRCDIR)/client_handler.c
 OBJS = ./$(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Default target
