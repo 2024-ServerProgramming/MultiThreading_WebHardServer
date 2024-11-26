@@ -53,6 +53,7 @@ void sign_in(CliSession *cliS){
         snprintf(buf, sizeof(buf), "Login successful. Welcome, %s!", s.id);
         cliS->is_login = 1;
         cliS->session = create_session(s.id); 
+        //printf("Session created for user: %s\n", cliS->session->user_id); 세션 디버깅
     } 
     else{
         strcpy(buf, "Invalid ID or password.");
@@ -67,8 +68,8 @@ void create_directory(const char *username){
 
     snprintf(path, sizeof(path), "./user_data/%s", username);
 
-    mkdir("user_data", 0700);   // home 디렉터리
-    if (mkdir(path, 0700) == -1 && errno != EEXIST){    // 사용자별 디렉터리 생성
+    mkdir("user_data", 0755);                           // home 디렉터리
+    if (mkdir(path, 0755) == -1 && errno != EEXIST){    // 사용자별 디렉터리 생성
         perror("Failed to create user directory");
     }
 }
