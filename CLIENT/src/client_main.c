@@ -7,6 +7,7 @@ void client_menu(int sd){
     while(1){
         printf("1. Sign In\n");
         printf("2. Sign Up\n");
+        printf("3. Exit\n");
         printf("Select an option: ");
         scanf("%d", &select);
         getchar();
@@ -16,6 +17,10 @@ void client_menu(int sd){
         }
         else if(select == 2){
             sign_up(sd);
+        }
+        else if (select == 3){
+            printf("Exiting client.\n");
+            break;
         }
         else{
             printf("Invalid option\n");
