@@ -7,7 +7,7 @@
 
 
 void *client_handle(CliSession *cliS){
-    char command[5];        // 명령어 저장
+    char command[10];        // 명령어 저장
     char filename[MAX_LENGTH];
     char buf[BUFSIZE];
     int fd;                 // 파일 디스크립터 
@@ -16,6 +16,7 @@ void *client_handle(CliSession *cliS){
     unsigned recvSize;      // 파일 받은 사이즈
     unsigned netFileSize;   // size_t == unsigned, 네트워크 전송용
     int isnull;             // 파일 있는지 없는지 여부 판별용 변수
+    int success = 0;
 
     while(1){
         memset(command, 0, sizeof(command)); 
@@ -39,8 +40,7 @@ void *client_handle(CliSession *cliS){
             /* 사용자 디렉토리에서 파일 열기 */
             char filepath[BUFSIZE];
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
-            printf("Attempting to open file at path: %s\n", filepath); // 디버깅용 출력
-
+            
             fd = open(filepath, O_RDONLY);
             if (fd < 0) {
                 perror("file open failed");
@@ -87,10 +87,9 @@ void *client_handle(CliSession *cliS){
                 printf("receiving filename failed\n");
                 break;
             }
-            
+
             printf("Client(%d): Uploading file [%s]\n", cliS->cli_data, filename);
 
-            /* 사용자 디렉토리에 파일 저장 */
             char filepath[BUFSIZE];
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
 
@@ -129,11 +128,37 @@ void *client_handle(CliSession *cliS){
             }
             close(fd);
         } 
+        // 파일 삭제 처리
+        else if(!strcmp(command, "delete")) {
+            memset(filename, 0, sizeof(filename));
+
+            int n = recv(cliS->cli_data, filename, sizeof(filename) - 1, 0);
+            if(n <= 0){
+                printf("receiving filename failed\n");
+                break;
+            }
+            filename[n] = '\0'; // Null-terminate the string
+
+            printf("Client(%d): Deleting file [%s]\n", cliS->cli_data, filename);
+
+            char filepath[BUFSIZE];
+            snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
+
+            if(remove(filepath) == 0){
+                success = 1;
+                printf("File [%s] deleted successfully.\n", filepath);
+            }
+            else{
+                success = 0;
+                perror("File delete failed");
+            }
+
+            send(cliS->cli_data, &success, sizeof(int), 0);
+        }
         else{
             printf("Client(%d): Invalid command [%s]\n", cliS->cli_data, command);
         }
     }
-
     close(cliS->cli_data);
     return;
 }

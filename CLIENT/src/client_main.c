@@ -28,20 +28,6 @@ void client_menu(int sd){
     }
 }
 
-void list_files(int sd){
-    char buf[256];
-    int n;
-
-    n = recv(sd, buf, sizeof(buf) - 1, 0);
-    if (n == -1) {
-        perror("recv");
-        exit(1);
-    }
-    buf[n] = '\0';
-    printf("Files:\n%s\n", buf);
-}
-
-
 int main(int argc, char *argv[]){
 
     if (argc != 2) {
