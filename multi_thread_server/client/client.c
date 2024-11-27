@@ -17,6 +17,7 @@ typedef struct offset_info {
     int client_sock;
     off_t start; // 시작부분
     off_t end;   // 마지막 부분
+    char buffer[1024];
 } OFFIN;
 
 void *process_range(void *off) {
@@ -29,16 +30,15 @@ void *process_range(void *off) {
     lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
 
     off_t remaining = end - start;
-    char buffer[1024];
 
     while (remaining > 0) {
         // 반복문 한번당 읽어야하는 바이트
         ssize_t byte_to_read = (remaining < 1024) ? remaining : 1024;
         // 실제로 읽어서 버퍼에 저장한 바이트
-        ssize_t bytes_read = read(fd, buffer, byte_to_read);
+        ssize_t bytes_read = read(fd, off_info->buffer, byte_to_read);
         // 버퍼에 저장한거 + 바이트 읽은거 구조체에 다 저장해서 send로 보냄.
         // 클라이언트는 send 한거 읽고 범위확인해서 클라이언트 파일에 write
-        send(client_sock, buffer, bytes_read, 0);
+        send(client_sock, off_info->buffer, bytes_read, 0);
         remaining -= bytes_read; // 읽은만큼 총 남은 비트에서 까줌
     }
 }
@@ -139,10 +139,30 @@ int main(int argc, char *argv[]) {
 
             sentSize = 0;
             while (sentSize < fileSize) {
-                recvSize = recv(sock, buf, BUFSIZE, 0); // 파일 전송 받기 4
-                if (recvSize <= 0)
+                OFFIN recv_info;                              // recv_info를 구조체 변수로 선언
+                recv(sock, &recv_info, sizeof(recv_info), 0); // 구조체 주소로 recv 호출
+                recvSize = strlen(recv_info.buffer);
+
+                if (recvSize <= 0) {
+                    printf("145 리시브 에러");
                     break;
-                write(fd, buf, recvSize);
+                }
+
+                // 파일 오프셋 이동
+                if (lseek(fd, recv_info.start, SEEK_SET) == (off_t)-1) {
+                    perror("Failed to seek");
+                    close(fd);
+                    return 1;
+                }
+                printf("recv buffer : %s\n", recv_info.buffer);
+                printf("recv size : %u\n", recvSize);
+                printf("start : %lld, end : %lld", recv_info.start, recv_info.end);
+                ssize_t bytes_written = write(fd, recv_info.buffer, strlen(recv_info.buffer));
+                if (bytes_written < 0) {
+                    perror("Failed to write");
+                    close(fd);
+                    return 1;
+                }
                 sentSize += recvSize;
             }
 

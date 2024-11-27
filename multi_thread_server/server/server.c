@@ -18,36 +18,49 @@ typedef struct offset_info {
     int client_sock;
     off_t start; // 시작부분
     off_t end;   // 마지막 부분
+    char buffer[1024];
 } OFFIN;
 
 void *process_range(void *off) {
     OFFIN *off_info = (OFFIN *)off;
-    int fd = off_info->fd;
-    off_t start = off_info->start;
-    off_t end = off_info->end;
-    int client_sock = off_info->client_sock;
 
-    lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
+    lseek(off_info->fd, off_info->start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
 
-    off_t remaining = end - start;
-    char buffer[1024];
+    off_t remaining = off_info->end - off_info->start;
 
+    int first_flag = 1;
     while (remaining > 0) {
+
         // 반복문 한번당 읽어야하는 바이트
         ssize_t byte_to_read = (remaining < 1024) ? remaining : 1024;
         // 실제로 읽어서 버퍼에 저장한 바이트
-        ssize_t bytes_read = read(fd, buffer, byte_to_read);
+        ssize_t bytes_read = read(off_info->fd, off_info->buffer, byte_to_read);
         // 버퍼에 저장한거 + 바이트 읽은거 구조체에 다 저장해서 send로 보냄.
-        // 클라이언트는 send 한거 읽고 범위확인해서 클라이언트 파일에 write
+
+        if (first_flag) { // 첫번째 패킷 보낼때, start : 처음, end : start + 전송바이트
+            off_info->start = off_info->start;
+            off_info->end = bytes_read;
+            printf("first!\n");
+            first_flag = 0;
+        } else { // 두번째부터 마지막 패킷 보낼때, start : 이전 end, end : 이전 end + 전송바이트
+            off_info->start = off_info->end;
+            off_info->end += bytes_read;
+        }
+        OFFIN send_info = {
+            .fd = off_info->fd,
+            .client_sock = off_info->client_sock,
+            .start = off_info->start,
+            .end = off_info->end,
+        };
+        memcpy(send_info.buffer, off_info->buffer, bytes_read);
+        sleep(1);
         pthread_mutex_lock(&socket_lock);
-        send(client_sock, buffer, bytes_read, 0);
-        // printf("send %ld bytes\n", bytes_read);
-        printf("send buffer content %s\n", buffer);
-        // pthread_mutex_unlock(&socket_lock);
-        // ssize_t bytes_read1 = read(fd, buffer, byte_to_read);
-        // if (bytes_read1 == 0) { // 파일의 끝에 도달
-        //     break;
-        // }
+        printf("send %ld bytes, content : %s\n", bytes_read, off_info->buffer);
+        printf("start : %lld, end : %lld\n", send_info.start, send_info.end);
+        send(off_info->client_sock, &send_info, sizeof(send_info), 0);
+        pthread_mutex_unlock(&socket_lock);
+        // printf("send buffer content %s\n", off_info->buffer);
+
         remaining -= bytes_read; // 읽은만큼 총 남은 비트에서 까줌
     }
 }

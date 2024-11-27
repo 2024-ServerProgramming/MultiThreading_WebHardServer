@@ -13,7 +13,6 @@ typedef struct offset_info {
 
 void *process_range(void *off) {
     OFFIN *off_info = (OFFIN *)off;
-    ;
     int fd = off_info->fd;
     off_t start = off_info->start;
     off_t end = off_info->end;
