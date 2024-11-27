@@ -5,6 +5,8 @@ void client_menu(int sd){
     int select;
 
     while(1){
+        (void)system("clear");
+        
         printf("1. Sign In\n");
         printf("2. Sign Up\n");
         printf("3. Exit\n");
@@ -26,19 +28,6 @@ void client_menu(int sd){
             printf("Invalid option\n");
         }
     }
-}
-
-void list_files(int sd){
-    char buf[256];
-    int n;
-
-    n = recv(sd, buf, sizeof(buf) - 1, 0);
-    if (n == -1) {
-        perror("recv");
-        exit(1);
-    }
-    buf[n] = '\0';
-    printf("Files:\n%s\n", buf);
 }
 
 

@@ -57,7 +57,6 @@ void sign_in(int sd){
 
     if (strstr(buf, "Login successful") != NULL){
         client_control(sd);
-        (void)system("clear");
     }
     else{
         return; 
@@ -93,5 +92,4 @@ void sign_up(int sd){
     
     buf[n] = '\0';
     printf("%s\n", buf);  
-    (void)system("clear");
 }
