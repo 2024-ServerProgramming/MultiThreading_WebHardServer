@@ -6,8 +6,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define MAXLINE 512
+#define MAXLINE 10000
 #define BUFSIZE 256
+
+#define PORT_NUM 9876
 
 void errquit(const char *mesg) {
     perror(mesg);
@@ -31,7 +33,7 @@ int main(int argc, char *argv[]) {
     // 서버 주소 설정
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(8080);
+    servaddr.sin_port = htons(PORT_NUM);
     if(inet_pton(AF_INET, server_ip, &servaddr.sin_addr) <= 0) {
         errquit("invalid address\n");
     }
@@ -40,7 +42,7 @@ int main(int argc, char *argv[]) {
     if (connect(sock, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         errquit("connect failed...");
     }
-    printf("Connected to server at %s:8080\n", server_ip);
+    printf("Connected to server at %s:%d\n", server_ip, PORT_NUM);
 
     while (1) {
         char command[5]; // 명령어 저장
@@ -53,7 +55,7 @@ int main(int argc, char *argv[]) {
         char buf[BUFSIZE];
         int isnull;       // 파일 있는지 없는지 여부 판별용 변수
 
-        printf("\nEnter command (get/put/exit): ");
+        printf("\nEnter command (get/put/tree/rm/exit): ");
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0';
 
@@ -156,8 +158,16 @@ int main(int argc, char *argv[]) {
                 printf("file [%s] upload incomplete.\n", filename);
             }
             close(fd);
+        } else if (strcmp(command, "tree") == 0) {
+            printf("서버 파일 구조:\n");
+            while (1) {
+                int n = recv(sock, buf, BUFSIZE, 0);
+                if (n <= 0) break;
+                buf[n] = '\0';
+                printf("%s", buf);
+            }
         } else {
-            printf("invalid command. Use 'get', 'put', or 'exit'.\n");
+            printf("invalid command. Use 'get', 'put', 'tree', 'rm', or 'exit'.\n");
         }
     }
 

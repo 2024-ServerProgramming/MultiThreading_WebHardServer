@@ -8,8 +8,10 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#define MAXLINE 512
+#define MAXLINE 10000
 #define BUFSIZE 256
+
+#define PORT_NUM 9876
 
 void errquit(const char *mesg) {
     perror(mesg);
@@ -138,6 +140,19 @@ void *client_handler(void *input) {
             }
             close(fd);
 
+        } else if(strcmp(command, "tree") == 0) {
+            FILE *fp;
+            fp = popen("tree", "r"); // tree 명령어 실행
+            if (fp == NULL) {
+                printf("tree command execution failed\n");
+                continue;
+            }
+
+            // 명령어 결과를 클라이언트로 전송
+            while(fgets(buf, BUFSIZE, fp) != NULL) {
+                send(client_sock, buf, strlen(buf), 0);
+            }
+            pclose(fp);
         } else {
             printf("Client(%d): Invalid command [%s]\n", client_sock, command);
         }
@@ -153,8 +168,8 @@ int main(int argc, char *argv[]) {
     socklen_t addrlen;
     pthread_t tid;
 
-    listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
-    printf("Server listening on port 8080...\n");
+    listen_sock = tcp_listen(INADDR_ANY, PORT_NUM, 10);
+    printf("Server listening on port %d...\n", PORT_NUM);
 
     while (1) {
         addrlen = sizeof(cliaddr);
