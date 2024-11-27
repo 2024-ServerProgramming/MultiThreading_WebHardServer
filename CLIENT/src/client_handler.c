@@ -17,12 +17,14 @@ void client_control(int sd){
         unsigned netFileSize;   // 네트워크 전송용 파일 사이즈
         char buf[BUFSIZE];
         int isnull;             // 파일 존재 여부 판별용 변수
+        int success = 0;
 
+        sleep(1);
+        (void)system("clear");
         printf("\nEnter command (get/put/exit): ");
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0';
 
-        
         if(strcmp(command, "exit") == 0){
             printf("exiting client.\n");
             break;
@@ -33,7 +35,8 @@ void client_control(int sd){
             break;
         }
 
-        if(strcmp(command, "get") == 0){ // 다운로드
+        /* 다운로드 */
+        if(strcmp(command, "get") == 0){ 
             /*파일 이름 입력 부분*/        
             printf("Enter filename to download: ");
             fgets(filename, sizeof(filename), stdin);
@@ -111,7 +114,7 @@ void client_control(int sd){
             netFileSize = htonl(fileSize);
             send(sd, &netFileSize, sizeof(netFileSize), 0); \
 
-            printf("Uploading file [%s] (%u bytes)\n", filename, fileSize); // 업로드할 파일 정보 출력
+            printf("Uploading file [%s] (%u bytes)\n", filename, fileSize);
 
             sentSize = 0;
             while(sentSize < fileSize){
@@ -128,8 +131,20 @@ void client_control(int sd){
             }
             close(fd);
         } 
+        /* 파일 삭제 */
+        else if (strncmp(command, "delete", 6) == 0){
+            printf("삭제할 파일명 입력: ");
+            fgets(filename, sizeof(filename), stdin);
+            filename[strcspn(filename, "\n")] = 0;  
+
+            send(sd, filename, sizeof(filename), 0);  // 서버에 파일명 전송
+
+            recv(sd, &success, sizeof(success), 0);  
+            if (success) printf("파일 삭제 성공: %s\n", filename);
+            else printf("파일 삭제 실패\n");
+        }
         else{
-            printf("invalid command. Use 'get', 'put', or 'exit'.\n");
+            printf("invalid command. Use 'get', 'put', 'delete', 'show' or 'exit'.\n");
         }
     }
 
