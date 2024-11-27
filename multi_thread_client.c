@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define MAXLINE 10000
+#define MAXLINE 512
 #define BUFSIZE 256
 
 #define PORT_NUM 9876
