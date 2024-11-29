@@ -1,7 +1,4 @@
 #include "server.h"
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 int tcp_listen(int host, int port, int backlog){
     int sd = socket(AF_INET, SOCK_STREAM, 0);

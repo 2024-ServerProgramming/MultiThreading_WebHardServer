@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <termios.h>
+#include <pthread.h>
 
 /* 공통 설정값 */
 //#define PORTNUM 7777                  // 서버 포트 번호
@@ -19,6 +20,8 @@
 #define SESSION_TIME_OUT 86400          // 세션 타임아웃(초) - 24시간
 #define DEFAULT_USER_DIR "./user_data"  // 사용자 디렉터리 경로
 #define MAX 10
+
+extern pthread_mutex_t m_lock;
 
 typedef struct{
     char id[MAX + 1];

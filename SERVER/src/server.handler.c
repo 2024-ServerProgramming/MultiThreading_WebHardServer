@@ -5,15 +5,6 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 
-typedef struct offset_info {
-    int fd;            // 파일 디스크립터
-    int client_sock;   // 클라이언트 소켓
-    off_t start;       // 전송 시작 위치
-    off_t end;         // 전송 종료 위치
-    char buffer[1024]; // 데이터 버퍼
-    char filename[BUFSIZE];
-} OFFIN;
-
 void What_I_received(OFFIN off) {
     printf("전송할 크기 : %d\n", sizeof(off));
     printf("전송할 fd : %d\n", off.fd);
@@ -71,6 +62,8 @@ void *client_handle(CliSession *cliS){
     int isnull;             // 파일 있는지 없는지 여부 판별용 변수
     int success = 0;
 
+    find_session(cliS->session->session_id);
+    
     while(1){
         memset(command, 0, sizeof(command)); 
     
@@ -220,6 +213,7 @@ void *client_handle(CliSession *cliS){
         else{
             printf("Client(%d): Invalid command [%s]\n", cliS->cli_data, command);
         }
+        update_session(cliS->session);
     }
 
     close(cliS->cli_data);

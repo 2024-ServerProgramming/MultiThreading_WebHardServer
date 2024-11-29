@@ -1,9 +1,4 @@
 #include "client_config.h"
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <termios.h>
 
 
 // 비밀번호 입력 시 에코 비활성화 함수

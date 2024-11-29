@@ -1,9 +1,7 @@
 #include "server.h"
 #include "session.h"
-#include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -53,7 +51,6 @@ void sign_in(CliSession *cliS){
         snprintf(buf, sizeof(buf), "Login successful. Welcome, %s!", s.id);
         cliS->is_login = 1;
         cliS->session = create_session(s.id); 
-        //printf("Session created for user: %s\n", cliS->session->user_id); 세션 디버깅
     } 
     else{
         strcpy(buf, "Invalid ID or password.");
@@ -68,8 +65,8 @@ void create_directory(const char *username){
 
     snprintf(path, sizeof(path), "./user_data/%s", username);
 
-    mkdir("user_data", 0755);                           // home 디렉터리
-    if (mkdir(path, 0755) == -1 && errno != EEXIST){    // 사용자별 디렉터리 생성
+    mkdir("user_data", 0755);                           // ../user_data (홈 디렉터리)
+    if (mkdir(path, 0755) == -1 && errno != EEXIST){    // ../user_data/{userid} (사용자별 디렉터리 생성)
         perror("Failed to create user directory");
     }
 }
@@ -93,7 +90,7 @@ void sign_up(CliSession *cliS){
     pthread_mutex_lock(&m_lock);
 
     // 사용자 정보 저장
-    FILE *fp = fopen("user.config", "a");
+    FILE *fp = fopen("user.config", "a");       // /etc/password 형식같이 저장
     if(fp == NULL){
         perror("Failed to open user.config");
         pthread_mutex_unlock(&m_lock);

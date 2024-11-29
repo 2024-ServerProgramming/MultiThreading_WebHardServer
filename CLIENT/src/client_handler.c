@@ -1,9 +1,5 @@
 #include "client_config.h"
-#include <unistd.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <arpa/inet.h>
 #include <sys/time.h>
 
 typedef struct offset_info {
@@ -59,24 +55,32 @@ void *process_range(void *off) {
     }
 }
 
+void show_file_list(int sd){
+    char *command = "ls -al";
+    system(command);
+    return  0;
+}
+
 void client_control(int sd){
     struct timeval start, end;
+
     while(1){
         char command[10];       // 명령어 저장
         char filename[MAX_LENGTH];
+        char buf[BUFSIZE];
+        char quit;              // 파일 조회용 변수
         int fd;                 // 파일 디스크립터 
         unsigned sentSize;      // 파일 받은 사이즈 합
         unsigned recvSize;      // 파일 받은 사이즈
         unsigned fileSize;      // 총 파일 사이즈
         unsigned netFileSize;   // 네트워크 전송용 파일 사이즈
-        char buf[BUFSIZE];
         int isnull;             // 파일 존재 여부 판별용 변수
         int success = 0;
 
         sleep(1);
         (void)system("clear");
 
-        printf("\nEnter command (get/put/delete/show/exit): ");
+        printf("\nEnter command (get/put/show/delete/exit): ");
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0';
 
@@ -87,7 +91,7 @@ void client_control(int sd){
         }
 
         if(send(sd, command, strlen(command), 0) <= 0){
-            perror("send cmd failed...");
+            perror("send cmd failed");
             break;
         }
 
@@ -98,7 +102,7 @@ void client_control(int sd){
             filename[strcspn(filename, "\n")] = '\0'; 
 
             if(send(sd, filename, strlen(filename), 0) <= 0){
-                perror("send filename failed...");
+                perror("send filename failed");
                 continue;
             }
 
@@ -126,8 +130,10 @@ void client_control(int sd){
                 continue;
             }
 
-            while (sentSize < fileSize) {
+            while(sentSize < fileSize){
+                pthread_mutex_lock(&m_lock);
                 ssize_t recv_bytes = recv(sd, buf, sizeof(buf), 0);
+                pthread_mutex_unlock(&m_lock);
                 if (recv_bytes <= 0) {
                     perror("Receive failed");
                     break;
@@ -148,6 +154,7 @@ void client_control(int sd){
             else{
                 printf("file [%s] download incomplete.\n", filename);
             }
+            
             close(fd);
 
         }
@@ -189,7 +196,8 @@ void client_control(int sd){
 
             if(sentSize == fileSize){
                 printf("file [%s] uploaded successfully.\n", filename);
-            } else {
+            }
+            else{
                 printf("file [%s] upload incomplete.\n", filename);
             }
             close(fd);
@@ -203,11 +211,26 @@ void client_control(int sd){
             send(sd, filename, sizeof(filename), 0);  // 서버에 파일명 전송
 
             recv(sd, &success, sizeof(success), 0);  
-            if (success) printf("file [%s] downloaded successfully.\n", filename);
-            else printf("file [%s] download incomplete.\n");
+            if (success){
+                printf("file [%s] downloaded successfully.\n", filename);
+            }
+            else{
+                printf("file [%s] download incomplete.\n");
+            }
+        }
+        else if(strncmp(command, "show", 4) == 0){
+            if(send(sd, filename, strlen(filename), 0) <= 0){
+                perror("send filename failed");
+                continue;
+            }
+
+            if(recv(sd, &isnull, sizeof(isnull), 0) <= 0){ 
+                perror("receiving file existence fail");
+                continue;
+            }
         }
         else{
-            printf("invalid command. Use 'get', 'put', 'delete, 'show' or 'exit'.\n");
+            printf("invalid command. Use 'get', 'put', 'show', 'delete or 'exit'.\n");
         }
     }
 
