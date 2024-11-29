@@ -7,9 +7,14 @@
 
 
 void client_control(int sd){
+
+    sleep(1);
+    (void)system("clear");
+
     while(1){
         char command[10];       // 명령어 저장
         char filename[MAX_LENGTH];
+        char quit;
         int fd;                 // 파일 디스크립터 
         unsigned sentSize;      // 파일 받은 사이즈 합
         unsigned recvSize;      // 파일 받은 사이즈
@@ -19,9 +24,7 @@ void client_control(int sd){
         int isnull;             // 파일 존재 여부 판별용 변수
         int success = 0;
 
-        sleep(1);
-        (void)system("clear");
-        printf("\nEnter command (get/put/exit): ");
+        printf("\nEnter command (get/put/show/delete/exit): ");
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0';
 
@@ -85,8 +88,11 @@ void client_control(int sd){
             else{
                 printf("file [%s] download incomplete.\n", filename);
             }
-            close(fd);
+            
+            sleep(1);
+            (void)system("clear");
 
+            close(fd);
         }
         else if(strcmp(command, "put") == 0){
             memset(filename, 0, sizeof(filename));
@@ -129,10 +135,27 @@ void client_control(int sd){
             } else {
                 printf("file [%s] upload incomplete.\n", filename);
             }
+
+            sleep(1);
+            (void)system("clear");
+
             close(fd);
         } 
+
+        else if (strcmp(command, "show") == 0){
+            char *command = "ls -al";
+            (void)system(command);
+
+            printf("do you want to quit? (Y/y): ");
+            scanf("%c", &quit);
+
+            if(quit == 'Y' || quit == 'y'){
+                (void)system("clear");
+            }
+        }
+
         /* 파일 삭제 */
-        else if (strncmp(command, "delete", 6) == 0){
+        else if (strcmp(command, "delete") == 0){
             printf("삭제할 파일명 입력: ");
             fgets(filename, sizeof(filename), stdin);
             filename[strcspn(filename, "\n")] = 0;  
@@ -142,9 +165,12 @@ void client_control(int sd){
             recv(sd, &success, sizeof(success), 0);  
             if (success) printf("파일 삭제 성공: %s\n", filename);
             else printf("파일 삭제 실패\n");
+
+            sleep(1);
+            (void)system("clear");
         }
         else{
-            printf("invalid command. Use 'get', 'put', 'delete', 'show' or 'exit'.\n");
+            printf("invalid command. Use 'get', 'put', 'show', 'delete' or 'exit'.\n");
         }
     }
 

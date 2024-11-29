@@ -34,7 +34,7 @@ void client_menu(int sd){
 int main(int argc, char *argv[]){
 
     if (argc != 2) {
-        printf("./%s <server ip> 입력하시오...\n", argv[0]);
+        printf("%s <server ip> 입력하시오...\n", argv[0]);
         exit(1);
     }
 
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
         exit(1);
     }
 
-    printf("Connectede to server \n");
+    printf("Connected to server \n");
     client_menu(sd);
     close(sd);
     return 0;

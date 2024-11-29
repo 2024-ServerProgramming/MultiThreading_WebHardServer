@@ -93,3 +93,9 @@ void sign_up(int sd){
     buf[n] = '\0';
     printf("%s\n", buf);  
 }
+
+void show_file_list(int sd){
+    char *command = "ls -al";
+    system(command);
+    return  0;
+}
