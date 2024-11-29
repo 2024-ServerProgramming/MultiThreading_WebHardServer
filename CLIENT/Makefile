@@ -6,7 +6,7 @@ INCDIR = include
 OBJDIR = obj
 BINDIR = bin
 
-BIN = ./$(BINDIR)/clint.exe
+BIN = ./$(BINDIR)/client.exe
 
 SRCS = ./$(SRCDIR)/client_main.c $(SRCDIR)/client_userAuth.c $(SRCDIR)/client_handler.c
 OBJS = ./$(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
