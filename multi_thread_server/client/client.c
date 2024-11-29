@@ -150,9 +150,16 @@ int main(int argc, char *argv[]) {
 
             gettimeofday(&start, NULL);
             sentSize = 0;
+            int flag = 0;
             while (sentSize < fileSize) {
-                OFFIN recv_info;                              // recv_info를 구조체 변수로 선언
+
+                OFFIN recv_info; // recv_info를 구조체 변수로 선언
+                char ack[4];
+                if (flag >= 1) {
+                    send(sock, ack, sizeof(ack), 0);
+                }
                 recv(sock, &recv_info, sizeof(recv_info), 0); // 구조체 주소로 recv 호출
+
                 What_I_received(recv_info);
                 recvSize = strlen(recv_info.buffer);
 
@@ -175,6 +182,7 @@ int main(int argc, char *argv[]) {
                     return 1;
                 }
                 sentSize += recvSize;
+                flag++;
             }
             gettimeofday(&end, NULL);
             double time_taken = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;

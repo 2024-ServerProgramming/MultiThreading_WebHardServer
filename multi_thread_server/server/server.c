@@ -32,6 +32,7 @@ void What_I_received(OFFIN off) {
 
 // 파일의 특정 범위를 처리하는 함수 (멀티스레드)
 void *process_range(void *off) {
+
     OFFIN *off_info = (OFFIN *)off;
     What_I_received(*off_info);
     // 파일의 시작 위치로 파일 포인터 이동
@@ -66,8 +67,11 @@ void *process_range(void *off) {
 
         // 동기화된 소켓 접근을 위해 뮤텍스 사용
         pthread_mutex_lock(&socket_lock);
+        char ack[4];
+        strcpy(ack, "ACK");
+        
         send(off_info->client_sock, &send_info, sizeof(send_info), 0); // 데이터 전송
-        pthread_mutex_unlock(&socket_lock);
+        recv(off_info->client_sock, ack, sizeof(ack), 0);
 
         remaining -= bytes_read; // 남은 데이터 크기 갱신
     }
