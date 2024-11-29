@@ -113,6 +113,7 @@ void *client_handler(void *input) {
     unsigned fileSize;      // 파일 크기
     unsigned sentSize = 0;  // 전송된 데이터 크기
     unsigned netFileSize;   // 네트워크 바이트 순서의 파일 크기
+    unsigned recvSize = 0;  // 파일 받은 사이즈
     int isnull;             // 파일 존재 여부
 
     while (1) {
@@ -172,6 +173,46 @@ void *client_handler(void *input) {
             printf("File [%s] sent to client (%u bytes).\n", filename, fileSize);
             close(fd);
 
+        } else if (strcmp(command, "put") == 0) {
+            memset(filename, 0, sizeof(filename));
+
+            if (recv(client_sock, filename, sizeof(filename), 0) <= 0) {
+                printf("receiving filename failed\n");
+                break;
+            }
+
+            printf("Client(%d): Uploading file [%s]\n", client_sock, filename);
+
+            fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) {
+                perror("file creation failed");
+                break;
+            }
+
+            if (recv(client_sock, &netFileSize, sizeof(netFileSize), 0) <= 0) { // 파일 크기 수신 2
+                printf("receiving file size failed\n");
+                close(fd);
+                break;
+            }
+
+            fileSize = ntohl(netFileSize);
+            printf("Receiving file [%s] (%u bytes)\n", filename, fileSize); // 파일 정보 출력
+
+            sentSize = 0;
+
+            while (sentSize < fileSize) {
+                recvSize = recv(client_sock, buf, BUFSIZE, 0); // 파일 순서대로 받기 3
+                if (recvSize <= 0)
+                    break;
+                write(fd, buf, recvSize);
+                sentSize += recvSize;
+            }
+            if (sentSize == fileSize) {
+                printf("File [%s] received successfully.\n", filename);
+            } else {
+                printf("File [%s] transfer incomplete.\n", filename);
+            }
+            close(fd);
         } else {
             printf("Invalid command: %s\n", command);
         }

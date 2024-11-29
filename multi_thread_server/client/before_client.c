@@ -1,57 +1,14 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <netinet/in.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #define MAXLINE 512
-#define BUFSIZE 1024
-
-typedef struct offset_info {
-    int fd;
-    int client_sock;
-    off_t start; // 시작부분
-    off_t end;   // 마지막 부분
-    char buffer[1024];
-} OFFIN;
-
-void What_I_received(OFFIN off) {
-    printf("클라이언트 받은 크기 : %d\n", sizeof(off));
-    printf("클라이언트 받은 fd : %d\n", off.fd);
-    printf("클라이언트 받은 start : %d\n", off.start);
-    printf("클라이언트 받은 end : %d\n", off.end);
-    printf("클라이언트 받은 client_sock : %d\n", off.client_sock);
-    printf("클라이언트 받은 buffer : %s\n", off.buffer);
-}
-
-void *process_range(void *off) {
-    OFFIN *off_info = (OFFIN *)off;
-    int fd = off_info->fd;
-    off_t start = off_info->start;
-    off_t end = off_info->end;
-    int client_sock = off_info->client_sock;
-
-    lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
-
-    off_t remaining = end - start;
-
-    while (remaining > 0) {
-        // 반복문 한번당 읽어야하는 바이트
-        ssize_t byte_to_read = (remaining < 1024) ? remaining : 1024;
-        // 실제로 읽어서 버퍼에 저장한 바이트
-        ssize_t bytes_read = read(fd, off_info->buffer, byte_to_read);
-        // 버퍼에 저장한거 + 바이트 읽은거 구조체에 다 저장해서 send로 보냄.
-        // 클라이언트는 send 한거 읽고 범위확인해서 클라이언트 파일에 write
-        send(client_sock, off_info->buffer, bytes_read, 0);
-        remaining -= bytes_read; // 읽은만큼 총 남은 비트에서 까줌
-    }
-}
+#define BUFSIZE 256
 
 void errquit(const char *mesg) {
     perror(mesg);
@@ -59,12 +16,12 @@ void errquit(const char *mesg) {
 }
 
 int main(int argc, char *argv[]) {
+    struct timeval start, end;
     if (argc != 2) {
         printf("./%s <server ip> 입력하시오...\n", argv[0]);
         exit(1);
     }
 
-    struct timeval start, end;
     const char *server_ip = argv[1];
     int sock;
     struct sockaddr_in servaddr;
@@ -115,11 +72,11 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (strcmp(command, "get") == 0) { // 다운로드 잘댐
+        if (strcmp(command, "get") == 0) { // 다운로드
             /*파일 이름 입력 부분*/
             printf("Enter filename to download: ");
             fgets(filename, sizeof(filename), stdin);
-            filename[strcspn(filename, "\n")] = '\0'; // 개행 빼주기
+            filename[strcspn(filename, "\n")] = '\0'; // 아... 이런게 있네
             /* 여기까지 */
 
             send(sock, filename, strlen(filename), 0); // 파일 이름 전송 1
@@ -129,7 +86,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            if (isnull == 1) {
+            if (isnull == 0) {
                 printf("file not found on server.\n");
                 continue;
             }
@@ -151,31 +108,13 @@ int main(int argc, char *argv[]) {
             gettimeofday(&start, NULL);
             sentSize = 0;
             while (sentSize < fileSize) {
-                OFFIN recv_info;                              // recv_info를 구조체 변수로 선언
-                recv(sock, &recv_info, sizeof(recv_info), 0); // 구조체 주소로 recv 호출
-                What_I_received(recv_info);
-                recvSize = strlen(recv_info.buffer);
-
-                if (recvSize <= 0) {
-                    printf("145 리시브 에러");
+                recvSize = recv(sock, buf, BUFSIZE, 0); // 파일 전송 받기 4
+                if (recvSize <= 0)
                     break;
-                }
-
-                // 파일 오프셋 이동
-                if (lseek(fd, recv_info.start, SEEK_SET) == (off_t)-1) {
-                    perror("Failed to seek");
-                    close(fd);
-                    return 1;
-                }
-
-                ssize_t bytes_written = write(fd, recv_info.buffer, strlen(recv_info.buffer));
-                if (bytes_written < 0) {
-                    perror("Failed to write");
-                    close(fd);
-                    return 1;
-                }
+                write(fd, buf, recvSize);
                 sentSize += recvSize;
             }
+
             gettimeofday(&end, NULL);
             double time_taken = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
             printf("Time taken: %f seconds\n", time_taken);
@@ -193,12 +132,13 @@ int main(int argc, char *argv[]) {
             /* 업로드할 파일 이름 입력 */
             printf("enter filename to upload: ");
             fgets(filename, sizeof(filename), stdin);
-            filename[strcspn(filename, "\n")] = '\0'; // 개행문자 널로 변경
+            filename[strcspn(filename, "\n")] = '\0'; // 이건 신이야...
             /* 여기까지 */
 
             fd = open(filename, O_RDONLY);
             if (fd < 0) {
                 perror("file open failed");
+                isnull = 0;
                 continue;
             }
 
@@ -211,24 +151,13 @@ int main(int argc, char *argv[]) {
 
             printf("Uploading file [%s] (%u bytes)\n", filename, fileSize); // 업로드할 파일 정보 출력
 
-            OFFIN off[4];
-            pthread_t pthreads[4];
-
             int sentSize = 0;
-
-            for (int i = 0; i < 4; i++) { // 파일을 읽어들여서 4등분으로 나누기
-                off[i].start = (fileSize / 4) * i;
-                off[i].end = (i == 3) ? fileSize : (fileSize / 4) * (i + 1);
-                off[i].fd = fd;
-                off[i].client_sock = sock;
-            }
-
-            for (int i = 0; i < 4; i++) {
-                pthread_create(&pthreads[i], NULL, process_range, &off[i]);
-            }
-
-            for (int i = 0; i < 4; i++) {
-                pthread_join(pthreads[i], NULL);
+            while (sentSize < fileSize) {
+                recvSize = read(fd, buf, BUFSIZE);
+                if (recvSize <= 0)
+                    break;
+                send(sock, buf, recvSize, 0); // 파일 순서대로 보내기 3
+                sentSize += recvSize;
             }
 
             if (sentSize == fileSize) {
