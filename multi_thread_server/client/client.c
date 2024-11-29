@@ -20,6 +20,15 @@ typedef struct offset_info {
     char buffer[1024];
 } OFFIN;
 
+void What_I_received(OFFIN off) {
+    printf("클라이언트 받은 크기 : %d\n", sizeof(off));
+    printf("클라이언트 받은 fd : %d\n", off.fd);
+    printf("클라이언트 받은 start : %d\n", off.start);
+    printf("클라이언트 받은 end : %d\n", off.end);
+    printf("클라이언트 받은 client_sock : %d\n", off.client_sock);
+    printf("클라이언트 받은 buffer : %s\n", off.buffer);
+}
+
 void *process_range(void *off) {
     OFFIN *off_info = (OFFIN *)off;
     int fd = off_info->fd;
@@ -104,11 +113,11 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (strcmp(command, "get") == 0) { // 다운로드
+        if (strcmp(command, "get") == 0) { // 다운로드 잘댐
             /*파일 이름 입력 부분*/
             printf("Enter filename to download: ");
             fgets(filename, sizeof(filename), stdin);
-            filename[strcspn(filename, "\n")] = '\0'; // 아... 이런게 있네
+            filename[strcspn(filename, "\n")] = '\0'; // 개행 빼주기
             /* 여기까지 */
 
             send(sock, filename, strlen(filename), 0); // 파일 이름 전송 1
@@ -141,6 +150,7 @@ int main(int argc, char *argv[]) {
             while (sentSize < fileSize) {
                 OFFIN recv_info;                              // recv_info를 구조체 변수로 선언
                 recv(sock, &recv_info, sizeof(recv_info), 0); // 구조체 주소로 recv 호출
+                What_I_received(recv_info);
                 recvSize = strlen(recv_info.buffer);
 
                 if (recvSize <= 0) {
@@ -154,9 +164,7 @@ int main(int argc, char *argv[]) {
                     close(fd);
                     return 1;
                 }
-                printf("recv buffer : %s\n", recv_info.buffer);
-                printf("recv size : %u\n", recvSize);
-                printf("start : %lld, end : %lld", recv_info.start, recv_info.end);
+
                 ssize_t bytes_written = write(fd, recv_info.buffer, strlen(recv_info.buffer));
                 if (bytes_written < 0) {
                     perror("Failed to write");
