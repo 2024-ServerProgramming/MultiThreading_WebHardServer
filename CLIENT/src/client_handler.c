@@ -1,6 +1,7 @@
 #include "client_config.h"
 #include <fcntl.h>
 #include <sys/time.h>
+pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct offset_info {
     int fd;
@@ -202,8 +203,24 @@ void client_control(int sd){
             }
             close(fd);
         } 
+        else if(strcmp(command, "show") == 0){
+            char result[BUFSIZE];
+            int n = recv(sd, result, sizeof(result) - 1, 0);
+            if(n <= 0){
+                perror("Failed to receive");
+                break;
+            }
+
+            result[n] = '\0'; 
+            if (strcmp(result, "FILE_END") == 0) {
+                break;
+            }
+
+            printf("%s", result); 
+            sleep(3);
+        }
         /* 파일 삭제 */
-        else if (strncmp(command, "delete", 6) == 0){
+        else if(strcmp(command, "delete") == 0){
             printf("Enter filename to delete: ");
             fgets(filename, sizeof(filename), stdin);
             filename[strcspn(filename, "\n")] = 0;  
@@ -216,17 +233,6 @@ void client_control(int sd){
             }
             else{
                 printf("file [%s] download incomplete.\n");
-            }
-        }
-        else if(strncmp(command, "show", 4) == 0){
-            if(send(sd, filename, strlen(filename), 0) <= 0){
-                perror("send filename failed");
-                continue;
-            }
-
-            if(recv(sd, &isnull, sizeof(isnull), 0) <= 0){ 
-                perror("receiving file existence fail");
-                continue;
             }
         }
         else{

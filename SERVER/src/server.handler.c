@@ -5,15 +5,6 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 
-void What_I_received(OFFIN off) {
-    printf("전송할 크기 : %d\n", sizeof(off));
-    printf("전송할 fd : %d\n", off.fd);
-    printf("전송할 start : %d\n", off.start);
-    printf("전송할 end : %d\n", off.end);
-    printf("전송할 client_sock : %d\n", off.client_sock);
-    printf("전송할 buffer : %s\n", off.buffer);
-}
-
 void *process_range(void *off) {
     OFFIN *off_info = (OFFIN *)off;
 
@@ -63,7 +54,7 @@ void *client_handle(CliSession *cliS){
     int success = 0;
 
     find_session(cliS->session->session_id);
-    
+
     while(1){
         memset(command, 0, sizeof(command)); 
     
@@ -183,8 +174,35 @@ void *client_handle(CliSession *cliS){
             }
             close(fd);
         } 
+         else if(strcmp(command, "show") == 0){
+            FILE *fp;
+            char result[BUFSIZE];
+      
+            char filepath[BUFSIZE];
+            snprintf(filepath, sizeof(filepath), "ls -a ./user_data/%s", cliS->session->user_id);
+
+            fp = popen(filepath, "r");
+            if(fp == NULL){
+                perror("Failed to run command");
+                continue;
+            }
+
+             // 명령어 실행 결과를 읽어와 클라이언트로 전송
+            while(fgets(result, sizeof(result), fp) != NULL){
+                if(send(cliS->cli_data, result, strlen(result), 0) == -1){
+                    perror("Failed to send");
+                    break;
+                }
+            }
+
+            // 명령어 실행 종료
+            pclose(fp);
+
+            strcpy(result, "FILE_END");
+            send(cliS->cli_data, result, strlen(result), 0);
+        }
         // 파일 삭제 처리
-        else if(!strcmp(command, "delete")) {
+        else if(strcmp(command, "delete") == 0) {
             memset(filename, 0, sizeof(filename));
 
             int n = recv(cliS->cli_data, filename, sizeof(filename) - 1, 0);
