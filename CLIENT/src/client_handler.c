@@ -4,9 +4,63 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
 
+typedef struct offset_info {
+    int fd;
+    int client_sock;
+    off_t start; // 시작부분
+    off_t end;   // 마지막 부분
+    char buffer[1024];
+} OFFIN;
+
+void What_I_received(OFFIN off) {
+    printf("클라이언트 받은 크기 : %d\n", sizeof(off));
+    printf("클라이언트 받은 fd : %d\n", off.fd);
+    printf("클라이언트 받은 start : %d\n", off.start);
+    printf("클라이언트 받은 end : %d\n", off.end);
+    printf("클라이언트 받은 client_sock : %d\n", off.client_sock);
+    printf("클라이언트 받은 buffer : %s\n", off.buffer);
+}
+
+void *process_range(void *off) {
+    OFFIN *off_info = (OFFIN *)off;
+    int fd = off_info->fd;
+    off_t start = off_info->start;
+    off_t end = off_info->end;
+    int client_sock = off_info->client_sock;
+
+    lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
+
+    off_t remaining = end - start;
+
+    while (remaining > 0) {
+        ssize_t recv_bytes = recv(client_sock, off_info->buffer, sizeof(off_info->buffer), 0);
+        if (recv_bytes <= 0) {
+            perror("Receive failed");
+            break;
+        }
+
+        // 파일 오프셋 이동
+        if (lseek(fd, off_info->start, SEEK_SET) == (off_t)-1) {
+            perror("Failed to seek");
+            close(fd);
+            pthread_exit(NULL);
+        }
+
+        ssize_t bytes_written = write(fd, off_info->buffer, recv_bytes);
+        if (bytes_written < 0) {
+            perror("Failed to write");
+            close(fd);
+            pthread_exit(NULL);
+        }
+
+        remaining -= recv_bytes;
+    }
+}
 
 void client_control(int sd){
+    struct timeval start, end;
     while(1){
         char command[10];       // 명령어 저장
         char filename[MAX_LENGTH];
@@ -22,7 +76,7 @@ void client_control(int sd){
         sleep(1);
         (void)system("clear");
 
-        printf("\nEnter command (get/put/exit): ");
+        printf("\nEnter command (get/put/delete/show/exit): ");
         fgets(command, sizeof(command), stdin);
         command[strcspn(command, "\n")] = '\0';
 
@@ -72,13 +126,21 @@ void client_control(int sd){
                 continue;
             }
 
-            sentSize = 0;
-            while(sentSize < fileSize){
-                recvSize = recv(sd, buf, BUFSIZE, 0); 
-                if (recvSize <= 0) break;
-                write(fd, buf, recvSize);
-                sentSize += recvSize;
+            while (sentSize < fileSize) {
+                ssize_t recv_bytes = recv(sd, buf, sizeof(buf), 0);
+                if (recv_bytes <= 0) {
+                    perror("Receive failed");
+                    break;
+                }
+                if (write(fd, buf, recv_bytes) <= 0) {
+                    perror("Write failed");
+                    break;
+                }
+                sentSize += recv_bytes;
             }
+            gettimeofday(&end, NULL);
+            double time_taken = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1e6;
+            printf("Time taken: %f seconds\n", time_taken);
 
             if(sentSize == fileSize){
                 printf("file [%s] downloaded successfully.\n", filename);
