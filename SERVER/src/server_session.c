@@ -36,7 +36,7 @@ Session *find_session(const char *session_id){
 	return NULL;
 }
 
-void update_session(Session *session) {
+void update_session(Session *session){
     session->last_active = time(NULL);
 }
 

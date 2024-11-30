@@ -54,7 +54,7 @@ void sign_in(int sd){
         client_control(sd);
     }
     else{
-        return; 
+        return NULL; 
     }
 }
 

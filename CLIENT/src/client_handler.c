@@ -11,15 +11,6 @@ typedef struct offset_info {
     char buffer[1024];
 } OFFIN;
 
-void What_I_received(OFFIN off) {
-    printf("클라이언트 받은 크기 : %d\n", sizeof(off));
-    printf("클라이언트 받은 fd : %d\n", off.fd);
-    printf("클라이언트 받은 start : %d\n", off.start);
-    printf("클라이언트 받은 end : %d\n", off.end);
-    printf("클라이언트 받은 client_sock : %d\n", off.client_sock);
-    printf("클라이언트 받은 buffer : %s\n", off.buffer);
-}
-
 void *process_range(void *off) {
     OFFIN *off_info = (OFFIN *)off;
     int fd = off_info->fd;
@@ -54,12 +45,6 @@ void *process_range(void *off) {
 
         remaining -= recv_bytes;
     }
-}
-
-void show_file_list(int sd){
-    char *command = "ls -al";
-    system(command);
-    return  0;
 }
 
 void client_control(int sd){
@@ -241,6 +226,6 @@ void client_control(int sd){
     }
 
     close(sd);
-    return 0;
+    return NULL;
 
 }
