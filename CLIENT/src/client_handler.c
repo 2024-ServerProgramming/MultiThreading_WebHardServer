@@ -18,7 +18,7 @@ void *process_range(void *off) {
     off_t end = off_info->end;
     int client_sock = off_info->client_sock;
 
-    lseek(fd, start, SEEK_SET); // 파일 포인터를 시작 위치로 이동
+    lseek(fd, start, SEEK_SET);
 
     off_t remaining = end - start;
 

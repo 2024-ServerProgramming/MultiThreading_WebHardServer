@@ -49,7 +49,7 @@ int main(int argc, char *argv[]){
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
-    sin.sin_port = htons(8080);
+    sin.sin_port = htons(7778);
 
     if(inet_pton(AF_INET, server_ip, &sin.sin_addr) == -1){
         perror("Invalid address");

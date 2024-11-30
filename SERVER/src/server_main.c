@@ -47,8 +47,18 @@ void start_index(int cli_sock){
             sign_up(&cliS);
         }
         else if(strcmp(buf, "SignIn") == 0){
-            sign_in(&cliS);
-            if (cliS.is_login) {
+            strcpy(buf, "SignInOK");
+            send(cliS.cli_data, buf, strlen(buf), 0);
+
+            rsize = recv(cli_sock, buf, sizeof(buf) - 1, 0);
+            if(rsize <= 0){
+                perror("ID and PW failed");
+                break;
+            }
+            buf[rsize] = '\0';
+
+            sign_in(&cliS, buf);
+            if(cliS.is_login){
                 client_handle(&cliS);
                 break;
             }
@@ -78,7 +88,7 @@ int main(void){
     socklen_t cli_len = sizeof(cli);
 
     /* 소켓 생성 및 연결 */
-    listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
+    listen_sock = tcp_listen(INADDR_ANY, 7778, 10);
 
     srand(time(NULL)); // 접속 시간을 위한 난수 생성
 

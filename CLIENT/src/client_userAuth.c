@@ -28,15 +28,27 @@ void sign_in(int sd){
     char buf[256];
     int n;
 
+    strcpy(buf, "SignIn");
+    send(sd, buf, strlen(buf), 0);
+
+    n = recv(sd, buf, sizeof(buf) - 1, 0);
+    if (n == -1){
+        perror("recv");
+        exit(1);
+    }
+    buf[n] = '\0';
+
+    if (strcmp(buf, "SignInOK") != 0){
+        printf("Unexpected response: %s\n", buf);
+        return;
+    }
+
     printf("\nId: ");
     scanf("%10s", s.id);
     getchar();
 
     printf("\nPassword: ");
     get_password(s.pw, sizeof(s.pw));
-
-    strcpy(buf, "SignIn");
-    send(sd, buf, strlen(buf), 0);
 
     sprintf(buf, "%s:%s", s.id, s.pw);
     send(sd, buf, strlen(buf), 0);
