@@ -36,7 +36,7 @@ typedef struct offset_info {
 extern pthread_mutex_t m_lock;
 
 /* 서버 관련 함수 */
-void sign_in(CliSession *session);
+void sign_in(CliSession *session, const char *data);
 void sign_up(CliSession *session);
 void *client_handle(CliSession *cliS);
 void *client_thread(void *arg);

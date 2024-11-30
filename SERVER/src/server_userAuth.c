@@ -8,26 +8,21 @@
 pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
-void sign_in(CliSession *cliS){
+void sign_in(CliSession *cliS,  const char *data){
     User s;
 	char buf[BUFSIZE];
     memset(buf, 0, sizeof(buf));
 
-    int n = recv(cliS->cli_data, buf, sizeof(buf) - 1, 0); 
-    if(n == -1){
-        perror("recv");
-        return;
-    }
-    buf[n] = '\0';
-
-    if(sscanf(buf, "%10[^:]:%10s", s.id, s.pw) != 2){
-        fprintf(stderr, "Invalid login data format: %s\n", buf);
+    if (sscanf(data, "%10[^:]:%10s", s.id, s.pw) != 2){
+        fprintf(stderr, "Invalid login data format: %s\n", data);
+        strcpy(buf, "Invalid ID or password format.");
+        send(cliS->cli_data, buf, strlen(buf), 0);
         return;
     }
 
     pthread_mutex_lock(&m_lock);
     FILE *fp = fopen("user.config", "r");
-    if(fp == NULL){
+    if (fp == NULL) {
         perror("user.config");
         pthread_mutex_unlock(&m_lock);
         return;
@@ -35,10 +30,10 @@ void sign_in(CliSession *cliS){
 
     char line[BUFSIZE];
     int login_success = 0;
-    while(fgets(line, sizeof(line), fp)){
+    while (fgets(line, sizeof(line), fp)){
         User temp;
-        if(sscanf(line, "%10[^:]:%10[^:]:%10s", temp.id, temp.pw, temp.name) == 3){
-            if(strcmp(temp.id, s.id) == 0 && strcmp(temp.pw, s.pw) == 0){
+        if (sscanf(line, "%10[^:]:%10[^:]:%10s", temp.id, temp.pw, temp.name) == 3) {
+            if (strcmp(temp.id, s.id) == 0 && strcmp(temp.pw, s.pw) == 0) {
                 login_success = 1;
                 break;
             }
@@ -46,11 +41,11 @@ void sign_in(CliSession *cliS){
     }
     fclose(fp);
     pthread_mutex_unlock(&m_lock);
-    
+
     if(login_success){
-        snprintf(buf, sizeof(buf), "Login successful. Welcome, %s!", s.id);
+        snprintf(buf, sizeof(buf), "Login successful. Welcome, %s!\n", s.id);
         cliS->is_login = 1;
-        cliS->session = create_session(s.id); 
+        cliS->session = create_session(s.id);
     } 
     else{
         strcpy(buf, "Invalid ID or password.");
@@ -103,6 +98,6 @@ void sign_up(CliSession *cliS){
 
     create_directory(s.id);
 
-    snprintf(buf, sizeof(buf), "Sign up successful. Welcome, %s!", s.id);
+    snprintf(buf, sizeof(buf), "Sign up successful.\n");
     send(cliS->cli_data, buf, strlen(buf), 0);
 }

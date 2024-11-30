@@ -5,11 +5,11 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 
-void *process_range(void *off) {
+void *process_range(void *off){
     OFFIN *off_info = (OFFIN *)off;
 
     int fd = open(off_info->filename, O_RDONLY);
-    if (fd < 0) {
+    if (fd < 0){
         perror("File open failed");
         pthread_exit(NULL);
     }
@@ -18,18 +18,27 @@ void *process_range(void *off) {
     off_t remaining = off_info->end - off_info->start;
     char buffer[1024];
 
-    while (remaining > 0) {
+    while(remaining > 0){
         ssize_t bytes_to_read = (remaining < sizeof(buffer)) ? remaining : sizeof(buffer);
         ssize_t bytes_read = read(fd, buffer, bytes_to_read);
-        if (bytes_read <= 0) {
+        if (bytes_read <= 0){
             perror("File read failed");
             break;
         }
 
-        // 전송할 데이터 길이 및 데이터 전송
-        ssize_t bytes_sent = send(off_info->client_sock, buffer, bytes_read, 0);
-        if (bytes_sent <= 0) {
-            perror("Send failed");
+        off_t offset = off_info->start + (off_info->end - remaining);
+        if(send(off_info->client_sock, &offset, sizeof(offset), 0) <= 0){
+            perror("Send offset failed");
+            break;
+        }
+
+        if(send(off_info->client_sock, &bytes_read, sizeof(bytes_read), 0) <= 0){
+            perror("Send data length failed");
+            break;
+        }
+
+        if(send(off_info->client_sock, buffer, bytes_read, 0) <= 0){
+            perror("Send data failed");
             break;
         }
 
@@ -118,7 +127,7 @@ void *client_handle(CliSession *cliS){
                 }
             }
 
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 4; i++){
                 pthread_join(pthreads[i], NULL);
             }
 
