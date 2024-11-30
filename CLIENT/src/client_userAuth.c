@@ -1,8 +1,7 @@
 #include "client_config.h"
 
-
 // 비밀번호 입력 시 에코 비활성화 함수
-void get_password(char *password, size_t max_len){
+void get_password(char *password, size_t max_len) {
     struct termios oldt, newt;
     int i = 0;
     int c;
@@ -13,17 +12,17 @@ void get_password(char *password, size_t max_len){
     newt.c_lflag &= ~(ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
-    while((c = getchar()) != '\n' && c != EOF && i < max_len - 1){
+    while ((c = getchar()) != '\n' && c != EOF && i < max_len - 1) {
         password[i++] = c;
     }
     password[i] = '\0';
 
     // 이전 터미널 설정 복원
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    printf("\n"); 
+    printf("\n");
 }
 
-void sign_in(int sd){
+void sign_in(int sd) {
     User s;
     char buf[256];
     int n;
@@ -32,13 +31,13 @@ void sign_in(int sd){
     send(sd, buf, strlen(buf), 0);
 
     n = recv(sd, buf, sizeof(buf) - 1, 0);
-    if (n == -1){
+    if (n == -1) {
         perror("recv");
         exit(1);
     }
     buf[n] = '\0';
 
-    if (strcmp(buf, "SignInOK") != 0){
+    if (strcmp(buf, "SignInOK") != 0) {
         printf("Unexpected response: %s\n", buf);
         return;
     }
@@ -54,7 +53,7 @@ void sign_in(int sd){
     send(sd, buf, strlen(buf), 0);
 
     n = recv(sd, buf, sizeof(buf) - 1, 0);
-    if(n == -1){
+    if (n == -1) {
         perror("recv");
         exit(1);
     }
@@ -62,15 +61,14 @@ void sign_in(int sd){
     buf[n] = '\0';
     printf("%s\n", buf);
 
-    if (strstr(buf, "Login successful") != NULL){
+    if (strstr(buf, "Login successful") != NULL) {
         client_control(sd);
-    }
-    else{
-        return NULL; 
+    } else {
+        return;
     }
 }
 
-void sign_up(int sd){
+void sign_up(int sd) {
     User s;
     char buf[256];
 
@@ -83,7 +81,7 @@ void sign_up(int sd){
 
     printf("\nName: ");
     scanf("%10s", s.name);
-    getchar(); 
+    getchar();
 
     strcpy(buf, "SignUp");
     send(sd, buf, strlen(buf), 0);
@@ -96,7 +94,7 @@ void sign_up(int sd){
         perror("recv");
         exit(1);
     }
-    
+
     buf[n] = '\0';
-    printf("%s\n", buf);  
+    printf("%s\n", buf);
 }
