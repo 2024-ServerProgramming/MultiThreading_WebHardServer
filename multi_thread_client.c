@@ -5,14 +5,50 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define MAXLINE 512
-#define BUFSIZE 256
+#define BUFSIZE 2048
+
+// pthread_mutex_t file_mutex;
+// pthread_mutex_t socket_mutex;
 
 void errquit(const char *mesg) {
     perror(mesg);
     exit(1);
 }
+
+// 나야 그 긴거
+typedef struct {
+    int sock;
+    int fd;
+    unsigned start_offset;
+    unsigned end_offset;
+} RecvInfo;
+
+void *recv_handler(void *input) {
+    RecvInfo *data = (RecvInfo *)input;
+    char buf[BUFSIZE];
+    unsigned offset = data->start_offset;
+
+    // pwrite를 사용하여 파일 동기화 문제 해결
+    while (offset < data->end_offset) {
+        unsigned chunk_size = (data->end_offset - offset > BUFSIZE) ? BUFSIZE : (data->end_offset - offset);
+        int recv_byte = recv(data->sock, buf, chunk_size, 0);
+        if (recv_byte <= 0) break;
+
+        if (pwrite(data->fd, buf, recv_byte, offset) <= 0) {
+            perror("write failed");
+            break;
+        }
+
+        offset += recv_byte;
+    }
+
+    free(data);
+    return NULL;
+}
+// 뇌가 녹는다...
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -23,6 +59,9 @@ int main(int argc, char *argv[]) {
     const char *server_ip = argv[1];
     int sock;
     struct sockaddr_in servaddr;
+
+    // pthread_mutex_init(&file_mutex, NULL);
+    // pthread_mutex_init(&socket_mutex, NULL);
 
     // 소켓 생성
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -102,19 +141,26 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            sentSize = 0;
-            while (sentSize < fileSize) {
-                recvSize = recv(sock, buf, BUFSIZE, 0); // 파일 전송 받기 4
-                if (recvSize <= 0) break;
-                write(fd, buf, recvSize);
-                sentSize += recvSize;
+            /* 여기서부터 받는거 !!! 함 해보자 */
+            unsigned threadCnt = (fileSize + BUFSIZE - 1) / BUFSIZE;
+            pthread_t *thread = malloc(threadCnt * sizeof(pthread_t));
+            
+            for(int i = 0; i < threadCnt; i++) {
+                RecvInfo *info = malloc(sizeof(RecvInfo));
+                info->sock = sock;
+                info->fd = fd;
+                info->start_offset = i * BUFSIZE;
+                info->end_offset = (i == threadCnt - 1) ? fileSize : (i + 1) * BUFSIZE;
+
+                pthread_create(&thread[i], NULL, recv_handler, info);
             }
 
-            if (sentSize == fileSize) {
-                printf("file [%s] downloaded successfully.\n", filename);
-            } else {
-                printf("file [%s] download incomplete.\n", filename);
-            }
+            for(int i = 0; i <threadCnt; i++)
+                pthread_join(thread[i], NULL);
+
+            free(thread);
+            
+            printf("file [%s] downloaded successfully.\n", filename);
             close(fd);
 
         } else if (strcmp(command, "put") == 0) {
