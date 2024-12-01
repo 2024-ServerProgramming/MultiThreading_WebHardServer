@@ -3,7 +3,6 @@
 
 void client_menu(int sd){
     int select;
-
     while(1){
         printf("1. Sign In\n");
         printf("2. Sign Up\n");
@@ -18,7 +17,7 @@ void client_menu(int sd){
         else if(select == 2){
             sign_up(sd);
         }
-        else if (select == 3){
+        else if(select == 3){
             printf("Exiting client.\n");
             break;
         }
@@ -30,12 +29,13 @@ void client_menu(int sd){
 
 int main(int argc, char *argv[]){
 
-    if (argc != 2) {
-        printf("%s <server ip> 입력하시오\n", argv[0]);
+    if(argc != 2){
+        printf("./%s <server ip> <port> 를 입력하시오.\n", argv[0]);
         exit(1);
     }
 
     const char *server_ip = argv[1]; 
+    int port = atoi(argv[2]);
     int sd;
     struct sockaddr_in sin;
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]){
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
-    sin.sin_port = htons(7778);
+    sin.sin_port = htons(port);
 
     if(inet_pton(AF_INET, server_ip, &sin.sin_addr) == -1){
         perror("Invalid address");
