@@ -2,8 +2,7 @@
 
 void client_menu(int sd) {
     int select;
-
-    while (1) {
+    while(1){
         printf("1. Sign In\n");
         printf("2. Sign Up\n");
         printf("3. Exit\n");
@@ -15,7 +14,8 @@ void client_menu(int sd) {
             sign_in(sd);
         } else if (select == 2) {
             sign_up(sd);
-        } else if (select == 3) {
+        }
+        else if(select == 3){
             printf("Exiting client.\n");
             break;
         } else {
@@ -24,14 +24,15 @@ void client_menu(int sd) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]){
 
     if (argc != 3) {
         printf("%s <server ip> <port> 로 입력하시오\n", argv[0]);
         exit(1);
     }
+
+    const char *server_ip = argv[1]; 
     int port = atoi(argv[2]);
-    const char *server_ip = argv[1];
     int sd;
     struct sockaddr_in sin;
 

@@ -79,12 +79,13 @@ void start_index(ThreadArgs arg) {
     close(cliS.cli_data);
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
+int main(int argc, char* argv[]){
+    if(argc!=2){
         printf("%s <port> 로 입력해주세요.\n", argv[0]);
         exit(1);
     }
-    int port = atoi(argv[1]);
+    int port= atoi(argv[1]);
+
     struct sockaddr_in cli;
     int listen_sock;
     socklen_t cli_len = sizeof(cli);
@@ -92,7 +93,7 @@ int main(int argc, char *argv[]) {
     /* 소켓 생성 및 연결 */
     listen_sock = tcp_listen(INADDR_ANY, port, 10);
 
-    srand(time(NULL)); // 접속 시간을 위한 난수 생성
+    srand(time(NULL));
 
     if (pthread_mutex_init(&m_lock, NULL) != 0) {
         perror("Mutex Init Failure");
