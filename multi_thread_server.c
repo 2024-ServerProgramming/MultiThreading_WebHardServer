@@ -9,7 +9,10 @@
 #include <pthread.h>
 
 #define MAXLINE 512
-#define BUFSIZE 256
+#define BUFSIZE 2048
+
+// pthread_mutex_t file_mutex;
+// pthread_mutex_t socket_mutex;
 
 void errquit(const char *mesg) {
     perror(mesg);
@@ -35,6 +38,39 @@ int tcp_listen(int host, int port, int backlog) {
 
     return sd;
 }
+
+/* 나야, 파일 분할 전송 */
+typedef struct {
+    int client_sock;
+    int file_fd;
+    unsigned start_offset;
+    unsigned end_offset;
+} SendInfo;
+
+void *send_handler(void *input) {
+    SendInfo *data = (SendInfo *)input;
+    char buf[BUFSIZE];
+    unsigned offset = data->start_offset;
+
+    // pread를 사용하여 파일 동기화 문제 해결
+    while (offset < data->end_offset) {
+        unsigned chunk_size = (data->end_offset - offset > BUFSIZE) ? BUFSIZE : (data->end_offset - offset);
+        int read_byte = pread(data->file_fd, buf, chunk_size, offset);
+        if (read_byte <= 0) break;
+
+        // 소켓 전송
+        if (send(data->client_sock, buf, read_byte, 0) <= 0) {
+            perror("send failed");
+            break;
+        }
+
+        offset += read_byte;
+    }
+
+    free(data);
+    return NULL;
+}
+/* 여기까지... */
 
 void *client_handler(void *input) {
     int client_sock = *(int *)input;
@@ -86,13 +122,24 @@ void *client_handler(void *input) {
             send(client_sock, &netFileSize, sizeof(netFileSize), 0); // 파일 사이즈 전송 3
             /* 여기까지 잘 작동하는가? */
 
-            sentSize = 0; // 여기서 파일 전송 시작하는데 sentSize가 fileSize일 때 까지 전송함
-            while (sentSize < fileSize) {
-                recvSize = read(fd, buf, BUFSIZE);
-                if (recvSize <= 0) break;
-                send(client_sock, buf, recvSize, 0); // 파일 전송 4
-                sentSize += recvSize;
+            // 쓰레드 나눠서 전송
+            unsigned ThreadCnt = (fileSize + BUFSIZE - 1) / BUFSIZE;
+            pthread_t *thread = malloc(ThreadCnt * sizeof(pthread_t));
+
+            for(int i = 0; i < ThreadCnt; i++) {
+                SendInfo *info = malloc(sizeof(SendInfo));
+                info->client_sock = client_sock;
+                info->file_fd = fd;
+                info->start_offset = i * BUFSIZE;
+                info->end_offset = (i == ThreadCnt - 1) ? fileSize : (i + 1) * BUFSIZE;
+
+                pthread_create(&thread[i], NULL, send_handler, info);
             }
+
+            for(int i = 0; i < ThreadCnt; i++)
+                pthread_join(thread[i], NULL);
+
+            free(thread);
 
             printf("File [%s] sent to client (%u bytes)\n", filename, fileSize);
             close(fd);
@@ -153,6 +200,9 @@ int main(int argc, char *argv[]) {
     socklen_t addrlen;
     pthread_t tid;
 
+    // pthread_mutex_init(&file_mutex, NULL);
+    // pthread_mutex_init(&socket_mutex, NULL);
+
     listen_sock = tcp_listen(INADDR_ANY, 8080, 10);
     printf("Server listening on port 8080...\n");
 
@@ -178,6 +228,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // pthread_mutex_destroy(&file_mutex);
+    // pthread_mutex_destroy(&socket_mutex);
     close(listen_sock);
     return 0;
 }
