@@ -1,34 +1,63 @@
 #include "server.h"
-#include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
-void *send_handler(void *input){
-    SendInfo *data = (SendInfo *)input;
-    char buf[BUF_SIZE];
-    unsigned offset = data->start_offset;
+pthread_mutex_t send_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t available_threads_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_t thread_pool[MAX_THREADS];
+int available_threads[MAX_THREADS] = {1, 1, 1, 1, 1, 1, 1, 1};
 
-    // pread를 사용하여 파일 동기화 문제 해결
-    while(offset < data->end_offset){
-        unsigned chunk_size = (data->end_offset - offset > BUF_SIZE) ? BUF_SIZE : (data->end_offset - offset);
-        int read_byte = pread(data->file_fd, buf, chunk_size, offset);
-        if (read_byte <= 0) break;
+void *send_handler(void *input) {
+    ThreadData *info = (ThreadData *)input;
 
-        // 소켓 전송
-        if(send(data->client_sock, buf, read_byte, 0) <= 0){
-            perror("send failed");
-            break;
-        }
+    int net_index = htonl(info->chunk_idx);
+    int net_data_size = htonl(info->data_size);
 
-        offset += read_byte;
+    pthread_mutex_lock(&send_lock);
+
+    printf("Thread %ld: Sending chunk %d (size: %ld bytes)\n", pthread_self(), info->chunk_idx, info->data_size);        // [디버깅] 전송하려는 청크 정보
+
+    
+    printf("Thread %ld: Sending index %d\n", pthread_self(), info->chunk_idx);           // [디버깅] 인덱스 전송
+    if (send(info->cli_sock, &net_index, sizeof(net_index), 0) <= 0) {
+        perror("Failed to send index");
+        pthread_mutex_unlock(&send_lock);
+        free(info);
+        return NULL;
     }
 
-    free(data);
+    printf("Thread %ld: Sending data_size %ld\n", pthread_self(), info->data_size);   // [디버깅] 데이터 크기 전송
+    if (send(info->cli_sock, &net_data_size, sizeof(net_data_size), 0) <= 0) {
+        perror("Failed to send data size");
+        pthread_mutex_unlock(&send_lock);
+        free(info);
+        return NULL;
+    }
+
+    //데이터 전송
+    size_t sent_bytes = 0;
+    while (sent_bytes < info->data_size) {
+        ssize_t sent = send(info->cli_sock, info->file_data + info->start_offset + sent_bytes, info->data_size - sent_bytes, 0);
+        if (sent <= 0) {
+            perror("Failed to send data");
+            break;
+        }
+        sent_bytes += sent;
+        printf("Thread %ld: Sent %zd bytes of data\n", pthread_self(), sent); 
+    }
+    
+    printf("Thread %ld: Finished sending chunk %d\n", pthread_self(), info->chunk_idx);  // [디버깅] 청크 전송 완료
+    pthread_mutex_unlock(&send_lock);
+
+
+    pthread_mutex_lock(&available_threads_lock);
+    available_threads[info->thread_idx] = 1;
+    pthread_mutex_unlock(&available_threads_lock);
+
+    free(info);
     return NULL;
 }
-
+   
 void *client_handle(CliSession *cliS){
     char command[10]; // 명령어 저장
     char filename[MAXLENGTH];
@@ -38,6 +67,7 @@ void *client_handle(CliSession *cliS){
     unsigned sentSize = 0; // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
     unsigned recvSize;     // 파일 받은 사이즈
     unsigned netFileSize;  // size_t == unsigned, 네트워크 전송용
+    unsigned chunkCnt;
     int isnull;            // 파일 있는지 없는지 여부 판별용 변수
     int success = 0;
 
@@ -51,7 +81,6 @@ void *client_handle(CliSession *cliS){
             break;
         }
 
-        /* 파일 다운로드 명령어 */
         if(strcmp(command, "get") == 0){
             memset(filename, 0, sizeof(filename));
 
@@ -62,7 +91,6 @@ void *client_handle(CliSession *cliS){
 
             printf("Client(%d): Requesting file [%s]\n", cliS->cli_data, filename);
 
-            /* 사용자 디렉토리에서 파일 열기 */
             char filepath[BUFSIZE];
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
 
@@ -73,45 +101,100 @@ void *client_handle(CliSession *cliS){
                 send(cliS->cli_data, &isnull, sizeof(isnull), 0);
                 continue;
             }
-
             isnull = 1;
             send(cliS->cli_data, &isnull, sizeof(isnull), 0);
 
-            fileSize = lseek(fd, 0, SEEK_END);
+            off_t data_size = lseek(fd, 0, SEEK_END);
             lseek(fd, 0, SEEK_SET);
-            netFileSize = htonl(fileSize);
-            send(cliS->cli_data, &netFileSize, sizeof(netFileSize), 0);
 
-            // 파일을 2048 바이트씩 나누어 여러 쓰레드로 전송
-            unsigned ThreadCnt = (fileSize + BUF_SIZE - 1) / BUF_SIZE;
-            pthread_t *threads = malloc(ThreadCnt * sizeof(pthread_t));
-            for(unsigned i = 0; i < ThreadCnt; i++){
-                SendInfo *info = malloc(sizeof(SendInfo));
-                if(!info){
+            fileSize = data_size;
+
+            // 청크 개수 계산 및 전송
+            chunkCnt = (fileSize + BUF_SIZE - 1) / BUF_SIZE;
+            unsigned net_chunkCnt = htonl(chunkCnt);
+            send(cliS->cli_data, &net_chunkCnt, sizeof(net_chunkCnt), 0);
+
+            printf("Total chunks to send: %u\n", chunkCnt); // 디버깅 출력
+
+            // 파일 전체를 메모리에 읽기
+            char *file_data = malloc(fileSize);
+            if (!file_data) {
+                perror("Memory allocation failed");
+                close(fd);
+                continue;
+            }
+            ssize_t bytes_read = read(fd, file_data, fileSize);
+            if (bytes_read != fileSize) {
+                perror("Failed to read the entire file");
+                free(file_data);
+                close(fd);
+                continue;
+            }
+            close(fd);
+
+            // 클라이언트로부터 배열 준비 완료 확인 받기
+            char result[BUFSIZE];
+            int n = recv(cliS->cli_data, result, sizeof(result) - 1, 0);
+            if (n <= 0) {
+                perror("Failed to receive array ready confirmation");
+                free(file_data);
+                break;
+            }
+            result[n] = '\0';
+            printf("Received from client: %s\n", result); // 디버깅 출력
+            if (strcmp(result, "ARRAY_READY") != 0) {
+                printf("Client did not send array ready confirmation.\n");
+                free(file_data);
+                continue;
+            }
+
+            // 스레드풀을 이용한 청크 전송(미완)
+            size_t offset = 0;
+            int chunkIdx = 0;
+            int threadIdx = 0;
+            while (offset < fileSize) {
+                ThreadData *info = malloc(sizeof(ThreadData));
+                if (!info) {
                     perror("Memory allocation failed");
-                    close(fd);
                     break;
                 }
-                info->client_sock = cliS->cli_data;
-                info->file_fd = fd;
-                info->start_offset = i * BUF_SIZE;
-                info->end_offset = (i == ThreadCnt - 1) ? fileSize : (i + 1) * BUF_SIZE;
-                snprintf(info->filename, sizeof(info->filename), "./user_data/%s/%s", cliS->session->user_id, filename);
+                info->cli_sock = cliS->cli_data;
+                info->chunk_idx = chunkIdx;
+                info->start_offset = offset;
+                info->data_size = ((offset + BUF_SIZE) > fileSize) ? (fileSize - offset) : BUF_SIZE;
+                info->file_data = file_data;
 
-                if(pthread_create(&threads[i], NULL, send_handler, info) != 0){
-                    perror("Thread creation failed");
-                    free(info);
-                    continue;
+                // 스레드풀에서 사용 가능한 스레드 찾기
+                int assigned = 0;
+                while (!assigned) {
+                    pthread_mutex_lock(&available_threads_lock);
+                    for (int j = 0; j < MAX_THREADS; j++) {
+                        if (available_threads[j]){
+                            available_threads[j] = 0;
+                            pthread_mutex_unlock(&available_threads_lock);
+                            pthread_create(&thread_pool[j], NULL, send_handler, info);
+                            info->thread_idx = j;
+                            assigned = 1;
+                            break;
+                        }
+                    }
+                    if (!assigned) {
+                        pthread_mutex_unlock(&available_threads_lock);
+                        usleep(1000);
+                    }
                 }
+
+                offset += info->data_size;
+                chunkIdx++;
             }
 
-            for(unsigned i = 0; i < ThreadCnt; i++){
-                pthread_join(threads[i], NULL);
+            // 모든 스레드 종료 대기
+            for (int i = 0; i < MAX_THREADS; i++) {
+                pthread_join(thread_pool[i], NULL);
             }
 
-            free(threads);
-            printf("File [%s] sent to client (%u bytes).\n", filename, fileSize);
-            close(fd);
+            free(file_data);
+            printf("File transfer to client completed successfully.\n");
         }
         /* put 명령어 */
         else if(strcmp(command, "put") == 0){
@@ -148,7 +231,7 @@ void *client_handle(CliSession *cliS){
                 recvSize = recv(cliS->cli_data, buf, BUF_SIZE, 0);
                 if (recvSize <= 0)
                     break;
-                ssize_t bytes_written = pwrite(fd, buf, recvSize, sentSize); // pwrite 사용
+                ssize_t bytes_written = pwrite(fd, buf, recvSize, sentSize); 
                 if (bytes_written < 0) {
                     perror("Write failed");
                     break;
@@ -173,6 +256,7 @@ void *client_handle(CliSession *cliS){
             fp = popen(filepath, "r");
             if (fp == NULL) {
                 perror("Failed to run command");
+                pclose(fp);
                 continue;
             }
 
@@ -180,12 +264,10 @@ void *client_handle(CliSession *cliS){
             while (fgets(result, sizeof(result), fp) != NULL){
                 if (send(cliS->cli_data, result, strlen(result), 0) == -1){
                     perror("Failed to send");
+                    pclose(fp);
                     break;
                 }
             }
-
-            // 명령어 실행 종료
-            pclose(fp);
 
             strcpy(result, "FILE_END");
             send(cliS->cli_data, result, strlen(result), 0);
@@ -214,15 +296,10 @@ void *client_handle(CliSession *cliS){
                 success = 0;
                 perror("File delete failed");
             }
-
             send(cliS->cli_data, &success, sizeof(int), 0);
-        }
-        else{
-            printf("Client(%d): Invalid command [%s]\n", cliS->cli_data, command);
         }
         update_session(cliS->session);
     }
-    
     close(cliS->cli_data);
     return NULL;
 }

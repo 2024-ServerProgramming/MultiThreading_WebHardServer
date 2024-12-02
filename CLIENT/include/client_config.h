@@ -16,8 +16,8 @@
 /* 공통 설정값 */
 //#define PORTNUM 7777                  // 서버 포트 번호
 #define BUFSIZE 256
-#define BUF_SIZE 2048                     // 버퍼 크기
-#define MAX_LENGTH 512                   // 문자열 최대 길이
+#define BUF_SIZE 4095                   // 스레드당 파일 전송 버퍼 크기
+#define MAX_LENGTH 512                  // 문자열 최대 길이
 #define SESSION_TIME_OUT 86400          // 세션 타임아웃(초) - 24시간
 #define DEFAULT_USER_DIR "./user_data"  // 사용자 디렉터리 경로
 #define MAX 10
@@ -30,13 +30,10 @@ typedef struct{
     char name[MAX + 1];
 } User;
 
-// 나야 그 긴거
 typedef struct {
-    int sock;
-    int fd;
-    unsigned start_offset;
-    unsigned end_offset;
-} RecvInfo;
+    char *data;
+    int data_size;
+} ChunkData;
 
 void client_control(int sd);
 void sign_in(int sd);
