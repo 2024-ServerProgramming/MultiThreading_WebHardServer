@@ -15,7 +15,7 @@
 
 /* 공통 설정값 */
 //#define PORTNUM 7777                  // 서버 포트 번호
-#define BUFSIZE 256
+#define BUFSIZE 512 
 #define BUF_SIZE 4095                   // 스레드당 파일 전송 버퍼 크기
 #define MAX_LENGTH 512                  // 문자열 최대 길이
 #define SESSION_TIME_OUT 86400          // 세션 타임아웃(초) - 24시간
@@ -35,9 +35,10 @@ typedef struct {
     int data_size;
 } ChunkData;
 
-void client_control(int sd);
+void main_menu(int sd);
+void home_menu(int sd);
 void sign_in(int sd);
 void sign_up(int sd);
-void *recv_handler(void *input);
+void get_password(char *password, size_t max_len);
 
 #endif

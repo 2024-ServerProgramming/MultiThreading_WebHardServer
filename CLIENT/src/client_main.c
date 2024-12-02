@@ -1,6 +1,6 @@
 #include "client_config.h"
 
-void client_menu(int sd) {
+void main_menu(int sd) {
     int select;
     while(1){
         printf("1. Sign In\n");
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
     }
 
     printf("Connected to server \n");
-    client_menu(sd);
+    main_menu(sd);
     close(sd);
     return 0;
 }

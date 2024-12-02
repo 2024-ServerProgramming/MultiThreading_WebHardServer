@@ -3,7 +3,7 @@
 #include <sys/time.h>
 pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
-void client_control(int sd){
+void home_menu(int sd){
     while(1){
         char command[10]; // 명령어 저장
         char filename[MAX_LENGTH];
@@ -19,7 +19,10 @@ void client_control(int sd){
         int success = 0;
 
         printf("\nEnter command (get/put/show/delete/exit): ");
-        fgets(command, sizeof(command), stdin);
+        if (fgets(command, sizeof(command), stdin) == NULL) {
+            fprintf(stderr, "Error: Failed to read command\n");
+            break;
+        }
         command[strcspn(command, "\n")] = '\0';
 
         if(strcmp(command, "exit") == 0){
