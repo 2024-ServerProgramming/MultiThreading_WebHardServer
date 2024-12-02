@@ -5,17 +5,18 @@ pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void home_menu(int sd){
     while(1){
-        char command[10]; // 명령어 저장
+        char command[10];            // 명령어 저장
         char filename[MAX_LENGTH];
-        char buf[BUFSIZE];
-        int fd;                // 파일 디스크립터
-        unsigned fileSize;     // 파일 송수신할 때 총 파일 사이즈
-        unsigned sentSize = 0; // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
-        unsigned recvSize;     // 파일 받은 사이즈
-        unsigned netFileSize;  // size_t == unsigned, 네트워크 전송용
+        char buf[BUF_SIZE];          // 파일 송수신 버퍼, 4095인 BUF_SIZE여야 하는데 512인 BUFSIZE로 잘못 작성되어 있길래 수정
+                                     // buffer overflow 나던게 이것 때문인 듯
+        int fd;                      // 파일 디스크립터
+        unsigned fileSize;           // 파일 송수신할 때 총 파일 사이즈
+        unsigned sentSize = 0;       // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
+        unsigned recvSize;           // 파일 받은 사이즈
+        unsigned netFileSize;        // size_t == unsigned, 네트워크 전송용
         unsigned chunkCnt;
         unsigned netChunkCnt;
-        int isnull;            // 파일 있는지 없는지 여부 판별용 변수
+        int isnull;                  // 파일 있는지 없는지 여부 판별용 변수
         int success = 0;
 
         printf("\nEnter command (get/put/show/delete/exit): ");
@@ -72,7 +73,9 @@ void home_menu(int sd){
             memset(allChunks, 0, chunkCnt * sizeof(ChunkData));
 
             // 서버에게 배열 준비 완료 메시지 전송
-            char result[BUFSIZE];
+            char result[BUF_SIZE]; // 여기도 BUF_SIZE로 수정. 
+            // 사실 얘는 4095까지 필요 없고 512로도 충분할 것 같은데 
+            // BUFFER SIZE를 그냥 하나로 통일하는 게 나을 거 같아서 수정
             strcpy(result, "ARRAY_READY");
             if (send(sd, result, strlen(result), 0) <= 0) {
                 perror("Failed to send array ready confirmation");
@@ -187,7 +190,7 @@ void home_menu(int sd){
 
             sentSize = 0;
             while(sentSize < fileSize){
-                recvSize = read(fd, buf, BUF_SIZE);
+                recvSize = read(fd, buf, sizeof(buf)); // BUF_SIZE 대신 sizeof(buf) 사용
                 if (recvSize <= 0) break;
                 send(sd, buf, recvSize, 0); // 파일 순서대로 보내기 3
                 sentSize += recvSize;
@@ -202,7 +205,9 @@ void home_menu(int sd){
             close(fd);
         }
         else if(strcmp(command, "show") == 0){
-            char result[BUFSIZE];
+            char result[BUF_SIZE]; // 여기도 BUF_SIZE로 수정
+            // 사실 얘도 4095까지 필요 없고 512로도 충분할 것 같은데 
+            // BUFFER SIZE를 그냥 하나로 통일하는 게 나을 거 같아서 수정
             int n = recv(sd, result, sizeof(result) - 1, 0);
             if(n <= 0){
                 perror("Failed to receive");
