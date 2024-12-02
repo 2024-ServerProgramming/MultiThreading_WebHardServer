@@ -59,13 +59,13 @@ void *home_menu(CliSession *cliS){
     char command[10]; // 명령어 저장
     char filename[MAXLENGTH];
     char buf[BUF_SIZE_4095];    // 파일 송수신 버퍼, BUFSIZE -> BUF_SIZE_4095로 수정
-    int fd;                // 파일 디스크립터
-    unsigned fileSize;     // 파일 송수신할 때 총 파일 사이즈
-    unsigned sentSize = 0; // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
-    unsigned recvSize;     // 파일 받은 사이즈
-    unsigned netFileSize;  // size_t == unsigned, 네트워크 전송용
-    unsigned chunkCnt;
-    int isnull;            // 파일 있는지 없는지 여부 판별용 변수
+    int fd;                     // 파일 디스크립터
+    unsigned fileSize;          // 파일 송수신할 때 총 파일 사이즈
+    unsigned sentSize = 0;      // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
+    unsigned recvSize;          // 파일 받은 사이즈
+    unsigned netFileSize;       // size_t == unsigned, 네트워크 전송용
+    unsigned chunkCnt;          // 청크 개수
+    int isnull;                 // 파일 있는지 없는지 여부 판별용 변수
     int success = 0;
 
     find_session(cliS->session->session_id);
@@ -78,7 +78,8 @@ void *home_menu(CliSession *cliS){
             break;
         }
 
-        if(strcmp(command, "get") == 0){
+        /* download 명령어 */ 
+        if(strcmp(command, "download") == 0){
             memset(filename, 0, sizeof(filename));
 
             if(recv(cliS->cli_data, filename, sizeof(filename), 0) <= 0){
@@ -192,8 +193,9 @@ void *home_menu(CliSession *cliS){
             free(file_data);
             printf("File transfer to client completed successfully.\n");
         }
-        /* put 명령어 */
-        else if(strcmp(command, "put") == 0){
+        
+        /* upload 명령어 */
+        else if(strcmp(command, "upload") == 0){
             memset(filename, 0, sizeof(filename));
 
             if(recv(cliS->cli_data, filename, sizeof(filename), 0) <= 0){

@@ -45,8 +45,8 @@ void main_menu(ThreadArgs arg){
 
         if (strcmp(buf, "SignUp") == 0) {
             sign_up(&cliS);
-        } else if (strcmp(buf, "SignIn") == 0) {
-            strcpy(buf, "SignInOK");
+        } else if (strcmp(buf, "Login") == 0) {
+            strcpy(buf, "LoginOK");
             send(cliS.cli_data, buf, strlen(buf), 0);
 
             rsize = recv(arg.sock, buf, sizeof(buf) - 1, 0);
@@ -56,7 +56,7 @@ void main_menu(ThreadArgs arg){
             }
             buf[rsize] = '\0';
 
-            sign_in(&cliS, buf);
+            login(&cliS, buf);
             if (cliS.is_login) {
                 home_menu(&cliS);
                 break;
@@ -100,8 +100,8 @@ int main(int argc, char* argv[]){
         return 1;
     }
     int user = 0;
-    printf("서버 실행완료 클라이언트 연결요청 기다리는중 ..\n");
-    while (1) { // 유저마다 소켓 만들어줌
+    printf("서버 실행완료. 클라이언트 연결요청 기다리는중 ..\n");
+    while (1) { // 유저마다 소켓 만들어 줌
         int *cli_sock = malloc(sizeof(int));
         *cli_sock = accept(listen_sock, (struct sockaddr *)&cli, &cli_len);
 

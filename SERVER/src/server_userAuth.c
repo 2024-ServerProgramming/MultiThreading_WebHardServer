@@ -7,7 +7,7 @@
 pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
-void sign_in(CliSession *cliS,  const char *data){
+void login(CliSession *cliS,  const char *data){
     User s;
 	char buf[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
     memset(buf, 0, sizeof(buf));

@@ -19,7 +19,10 @@ void home_menu(int sd){
         int isnull;                  // 파일 있는지 없는지 여부 판별용 변수
         int success = 0;
 
-        printf("\nEnter command (get/put/show/delete/exit): ");
+        // FILE *fp = popen("clear", "r"); // 화면 지우기
+        // pclose(fp);                     // 파일 포인터 닫기
+
+        printf("\nEnter command (download / upload / show / delete / exit): ");
         if (fgets(command, sizeof(command), stdin) == NULL) {
             fprintf(stderr, "Error: Failed to read command\n");
             break;
@@ -36,7 +39,10 @@ void home_menu(int sd){
             break;
         }
 
-        if (strcmp(command, "get") == 0) {
+        if (strcmp(command, "download") == 0) {
+            struct timeval start, end;
+            gettimeofday(&start, NULL); // 다운로드 시작 시간 기록
+
             printf("Enter filename to download: ");
             fgets(filename, sizeof(filename), stdin);
             filename[strcspn(filename, "\n")] = '\0';
@@ -162,9 +168,16 @@ void home_menu(int sd){
             free(allChunks);
             close(fd);
 
+            gettimeofday(&end, NULL); // 다운로드 종료 시간 기록
+            double download_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
+            printf("Download completed in %.6f seconds.\n", download_time);
+
             printf("File [%s] downloaded successfully.\n", filename);
         }
-        else if(strcmp(command, "put") == 0){
+        else if(strcmp(command, "upload") == 0){
+            struct timeval start, end;
+            gettimeofday(&start, NULL); // 업로드 시작 시간 기록
+
             memset(filename, 0, sizeof(filename));
 
             /* 업로드할 파일 이름 입력 */
@@ -203,6 +216,10 @@ void home_menu(int sd){
                 printf("file [%s] upload incomplete.\n", filename);
             }
             close(fd);
+
+            gettimeofday(&end, NULL); // 업로드 종료 시간 기록
+            double upload_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
+            printf("Upload completed in %.6f seconds.\n", upload_time);
         }
         else if(strcmp(command, "show") == 0){
             char result[BUF_SIZE_4095]; // 여기도 BUF_SIZE_4095로 수정
@@ -219,8 +236,9 @@ void home_menu(int sd){
                 break;
             }
 
-            printf("%s", result);
-            sleep(3);
+            printf("%s\n", result);
+            // printf("The program will restart after 3 seconds...\n"); // 안내 문구 출력
+            // sleep(3);
         }
         /* 파일 삭제 */
         else if(strcmp(command, "delete") == 0){
@@ -239,7 +257,7 @@ void home_menu(int sd){
             }
         }
         else{
-            printf("invalid command. Use 'get', 'put', 'show', 'delete or 'exit'.\n");
+            printf("invalid command. Use 'download', 'upload', 'show', 'delete or 'exit'.\n");
         }
     }
 

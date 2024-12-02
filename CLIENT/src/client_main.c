@@ -3,15 +3,16 @@
 void main_menu(int sd) {
     int select;
     while(1){
-        printf("1. Sign In\n");
-        printf("2. Sign Up\n");
-        printf("3. Exit\n");
+        // 메뉴 출력
+        printf("1. Login\n"); // 로그인, Sign In -> Login 으로 수정
+        printf("2. Sign Up\n"); // 회원가입
+        printf("3. Exit\n"); // 종료
         printf("Select an option: ");
         scanf("%d", &select);
         getchar();
 
         if (select == 1) {
-            sign_in(sd);
+            login(sd);
         } else if (select == 2) {
             sign_up(sd);
         }
