@@ -7,7 +7,7 @@ void home_menu(int sd){
     while(1){
         char command[10];            // 명령어 저장
         char filename[MAX_LENGTH];
-        char buf[BUF_SIZE];          // 파일 송수신 버퍼, 4095인 BUF_SIZE여야 하는데 512인 BUFSIZE로 잘못 작성되어 있길래 수정
+        char buf[BUF_SIZE_4095];     // 파일 송수신 버퍼, 4095인 BUF_SIZE여야 하는데 512인 BUFSIZE로 잘못 작성되어 있길래 수정
                                      // buffer overflow 나던게 이것 때문인 듯
         int fd;                      // 파일 디스크립터
         unsigned fileSize;           // 파일 송수신할 때 총 파일 사이즈
@@ -73,7 +73,7 @@ void home_menu(int sd){
             memset(allChunks, 0, chunkCnt * sizeof(ChunkData));
 
             // 서버에게 배열 준비 완료 메시지 전송
-            char result[BUF_SIZE]; // 여기도 BUF_SIZE로 수정. 
+            char result[BUF_SIZE_4095]; // 여기도 BUF_SIZE_4095로 수정. 
             // 사실 얘는 4095까지 필요 없고 512로도 충분할 것 같은데 
             // BUFFER SIZE를 그냥 하나로 통일하는 게 나을 거 같아서 수정
             strcpy(result, "ARRAY_READY");
@@ -109,7 +109,7 @@ void home_menu(int sd){
                 printf("Received data size: %d\n", data_size);
 
                 // 데이터 수신
-                char *data = malloc(BUF_SIZE);
+                char *data = malloc(BUF_SIZE_4095);
                 if (!data) {
                     perror("Failed to allocate memory for chunk data");
                     break;
@@ -128,9 +128,9 @@ void home_menu(int sd){
 
                 printf("Received chunk %d (%d bytes)\n", index, data_size);  // [디버깅] 수신한 청크 정보
 
-                // 데이터 크기가 BUF_SIZE보다 작을 경우 나머지를 '\n'으로 채우기
-                if(data_size < BUF_SIZE){
-                    memset(data + data_size, '\n', BUF_SIZE - data_size);
+                // 데이터 크기가 BUF_SIZE_4095보다 작을 경우 나머지를 '\n'으로 채우기
+                if(data_size < BUF_SIZE_4095){
+                    memset(data + data_size, '\n', BUF_SIZE_4095 - data_size);
                 }
 
                 allChunks[index].data = data;
@@ -190,7 +190,7 @@ void home_menu(int sd){
 
             sentSize = 0;
             while(sentSize < fileSize){
-                recvSize = read(fd, buf, sizeof(buf)); // BUF_SIZE 대신 sizeof(buf) 사용
+                recvSize = read(fd, buf, sizeof(buf)); // BUF_SIZE_4095 대신 sizeof(buf) 사용하여 버퍼의 크기를 명확히 지정.(버퍼 오버플로우 방지)
                 if (recvSize <= 0) break;
                 send(sd, buf, recvSize, 0); // 파일 순서대로 보내기 3
                 sentSize += recvSize;
@@ -205,7 +205,7 @@ void home_menu(int sd){
             close(fd);
         }
         else if(strcmp(command, "show") == 0){
-            char result[BUF_SIZE]; // 여기도 BUF_SIZE로 수정
+            char result[BUF_SIZE_4095]; // 여기도 BUF_SIZE_4095로 수정
             // 사실 얘도 4095까지 필요 없고 512로도 충분할 것 같은데 
             // BUFFER SIZE를 그냥 하나로 통일하는 게 나을 거 같아서 수정
             int n = recv(sd, result, sizeof(result) - 1, 0);

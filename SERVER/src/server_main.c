@@ -32,7 +32,7 @@ int tcp_listen(int host, int port, int backlog) {
 }
 
 void main_menu(ThreadArgs arg){
-    char buf[BUFSIZE];
+    char buf[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
     int rsize;
 
     CliSession cliS;
@@ -62,7 +62,7 @@ void main_menu(ThreadArgs arg){
                 break;
             }
         } else {
-            char temp_buf[BUFSIZE];
+            char temp_buf[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
             snprintf(temp_buf, sizeof(temp_buf), "Unknown command: %s", buf);
             strncpy(buf, temp_buf, sizeof(buf) - 1);
             send(cliS.cli_data, buf, strlen(buf), 0);
