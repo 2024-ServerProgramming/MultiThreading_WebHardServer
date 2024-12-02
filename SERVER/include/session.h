@@ -18,6 +18,5 @@ Session *create_session(const char *user_id);
 Session *find_session(const char *session_id);
 void update_session(Session *session);
 void remove_expired_sessions();
-void print_session(void);
 
 #endif 

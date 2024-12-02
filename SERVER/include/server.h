@@ -29,6 +29,7 @@ typedef struct {
     int user_num; // 유저 번호
 } ThreadArgs;
 
+/* 작업하는 스레드의 청크 정보 구조체 */
 typedef struct {
     int cli_sock;
     int chunk_idx;
@@ -43,7 +44,8 @@ extern pthread_mutex_t m_lock;
 /* 서버 관련 함수 */
 void sign_in(CliSession *session, const char *data);
 void sign_up(CliSession *session);
-void *client_handle(CliSession *cliS);
+void *home_menu(CliSession *cliS);
+void main_menu(ThreadArgs arg);
 void *client_thread(void *arg);
 void *send_handler(void *input);
 

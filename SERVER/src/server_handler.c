@@ -9,16 +9,13 @@ int available_threads[MAX_THREADS] = {1, 1, 1, 1, 1, 1, 1, 1};
 
 void *send_handler(void *input) {
     ThreadData *info = (ThreadData *)input;
-
     int net_index = htonl(info->chunk_idx);
     int net_data_size = htonl(info->data_size);
 
     pthread_mutex_lock(&send_lock);
+    //printf("Thread %ld: Sending chunk %d (size: %ld bytes)\n", pthread_self(), info->chunk_idx, info->data_size);        // [디버깅] 전송하려는 청크 정보
 
-    printf("Thread %ld: Sending chunk %d (size: %ld bytes)\n", pthread_self(), info->chunk_idx, info->data_size);        // [디버깅] 전송하려는 청크 정보
-
-    
-    printf("Thread %ld: Sending index %d\n", pthread_self(), info->chunk_idx);           // [디버깅] 인덱스 전송
+    //printf("Thread %ld: Sending index %d\n", pthread_self(), info->chunk_idx);           // [디버깅] 인덱스 전송
     if (send(info->cli_sock, &net_index, sizeof(net_index), 0) <= 0) {
         perror("Failed to send index");
         pthread_mutex_unlock(&send_lock);
@@ -26,7 +23,7 @@ void *send_handler(void *input) {
         return NULL;
     }
 
-    printf("Thread %ld: Sending data_size %ld\n", pthread_self(), info->data_size);   // [디버깅] 데이터 크기 전송
+    //printf("Thread %ld: Sending data_size %ld\n", pthread_self(), info->data_size);   // [디버깅] 데이터 크기 전송
     if (send(info->cli_sock, &net_data_size, sizeof(net_data_size), 0) <= 0) {
         perror("Failed to send data size");
         pthread_mutex_unlock(&send_lock);
@@ -43,22 +40,22 @@ void *send_handler(void *input) {
             break;
         }
         sent_bytes += sent;
-        printf("Thread %ld: Sent %zd bytes of data\n", pthread_self(), sent); 
+        //printf("Thread %ld: Sent %zd bytes of data\n", pthread_self(), sent); 
     }
     
-    printf("Thread %ld: Finished sending chunk %d\n", pthread_self(), info->chunk_idx);  // [디버깅] 청크 전송 완료
+    //printf("Thread %ld: Finished sending chunk %d\n", pthread_self(), info->chunk_idx);  // [디버깅] 청크 전송 완료
     pthread_mutex_unlock(&send_lock);
 
 
     pthread_mutex_lock(&available_threads_lock);
-    available_threads[info->thread_idx] = 1;
+    available_threads[info->thread_idx] = 1;        // 스레드 다시 작업 가능으로 변경
     pthread_mutex_unlock(&available_threads_lock);
 
     free(info);
     return NULL;
 }
    
-void *client_handle(CliSession *cliS){
+void *home_menu(CliSession *cliS){
     char command[10]; // 명령어 저장
     char filename[MAXLENGTH];
     char buf[BUFSIZE];
@@ -89,7 +86,7 @@ void *client_handle(CliSession *cliS){
                 break;
             }
 
-            printf("Client(%d): Requesting file [%s]\n", cliS->cli_data, filename);
+            //printf("Client(%d): Requesting file [%s]\n", cliS->cli_data, filename);
 
             char filepath[BUFSIZE];
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
@@ -114,7 +111,7 @@ void *client_handle(CliSession *cliS){
             unsigned net_chunkCnt = htonl(chunkCnt);
             send(cliS->cli_data, &net_chunkCnt, sizeof(net_chunkCnt), 0);
 
-            printf("Total chunks to send: %u\n", chunkCnt); // 디버깅 출력
+            //printf("Total chunks to send: %u\n", chunkCnt); // 디버깅 출력
 
             // 파일 전체를 메모리에 읽기
             char *file_data = malloc(fileSize);
@@ -124,7 +121,7 @@ void *client_handle(CliSession *cliS){
                 continue;
             }
             ssize_t bytes_read = read(fd, file_data, fileSize);
-            if (bytes_read != fileSize) {
+            if(bytes_read != fileSize){
                 perror("Failed to read the entire file");
                 free(file_data);
                 close(fd);
@@ -148,10 +145,9 @@ void *client_handle(CliSession *cliS){
                 continue;
             }
 
-            // 스레드풀을 이용한 청크 전송(미완)
+            // 스레드풀을 이용한 청크 전송
             size_t offset = 0;
             int chunkIdx = 0;
-            int threadIdx = 0;
             while (offset < fileSize) {
                 ThreadData *info = malloc(sizeof(ThreadData));
                 if (!info) {
@@ -170,11 +166,11 @@ void *client_handle(CliSession *cliS){
                     pthread_mutex_lock(&available_threads_lock);
                     for (int j = 0; j < MAX_THREADS; j++) {
                         if (available_threads[j]){
-                            available_threads[j] = 0;
+                            available_threads[j] = 0;   // 작업해야하면 0으로 변경
                             pthread_mutex_unlock(&available_threads_lock);
                             pthread_create(&thread_pool[j], NULL, send_handler, info);
                             info->thread_idx = j;
-                            assigned = 1;
+                            assigned = 1;               // 작업이 끝났으면 다시 1로 변경
                             break;
                         }
                     }

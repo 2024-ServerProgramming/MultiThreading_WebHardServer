@@ -3,7 +3,6 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include <arpa/inet.h>
 #include <netinet/in.h>
 pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
