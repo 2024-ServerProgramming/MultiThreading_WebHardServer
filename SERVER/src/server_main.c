@@ -31,7 +31,7 @@ int tcp_listen(int host, int port, int backlog) {
     return sd;
 }
 
-void start_index(ThreadArgs arg) {
+void main_menu(ThreadArgs arg){
     char buf[BUFSIZE];
     int rsize;
 
@@ -58,7 +58,7 @@ void start_index(ThreadArgs arg) {
 
             sign_in(&cliS, buf);
             if (cliS.is_login) {
-                client_handle(&cliS);
+                home_menu(&cliS);
                 break;
             }
         } else {
@@ -133,6 +133,6 @@ void *client_thread(void *arg) {
     ThreadArgs client_arg = *((ThreadArgs *)arg);
     free(arg);
 
-    start_index(client_arg);
+    main_menu(client_arg);
     pthread_exit(NULL);
 }

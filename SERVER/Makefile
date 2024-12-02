@@ -8,7 +8,7 @@ BINDIR = bin
 
 BIN = $(BINDIR)/server.exe
 
-SRCS = $(SRCDIR)/server_main.c $(SRCDIR)/server_userAuth.c $(SRCDIR)/server_session.c $(SRCDIR)/server.handler.c
+SRCS = $(SRCDIR)/server_main.c $(SRCDIR)/server_userAuth.c $(SRCDIR)/server_session.c $(SRCDIR)/server_handler.c
 OBJS = $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 # Default target

@@ -62,7 +62,7 @@ void sign_in(int sd) {
     printf("%s\n", buf);
 
     if (strstr(buf, "Login successful") != NULL) {
-        client_control(sd);
+        home_menu(sd);
     } else {
         return;
     }
