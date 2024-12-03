@@ -39,7 +39,7 @@ typedef struct {
 
 void main_menu(int sd);
 void home_menu(int sd);
-void sign_in(int sd);
+void login(int sd);
 void sign_up(int sd);
 void get_password(char *password, size_t max_len);
 

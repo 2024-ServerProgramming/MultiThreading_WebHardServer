@@ -39,10 +39,15 @@ typedef struct {
     char *file_data; // 전체 파일 데이터의 포인터
 } ThreadData;
 
+typedef struct {
+    char *data;
+    int data_size;
+} ChunkData;
+
 extern pthread_mutex_t m_lock;
 
 /* 서버 관련 함수 */
-void sign_in(CliSession *session, const char *data);
+void login(CliSession *session, const char *data);
 void sign_up(CliSession *session);
 void *home_menu(CliSession *cliS);
 void main_menu(ThreadArgs arg);
