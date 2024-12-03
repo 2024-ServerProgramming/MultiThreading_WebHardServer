@@ -4,7 +4,7 @@ void main_menu(int sd) {
     int select;
     while(1){
         // 메뉴 출력
-        printf("1. Login\n"); // 로그인
+        printf("1. Login\n"); // 로그인, Sign In -> Login 으로 수정
         printf("2. Sign Up\n"); // 회원가입
         printf("3. Exit\n"); // 종료
         printf("Select an option: ");
