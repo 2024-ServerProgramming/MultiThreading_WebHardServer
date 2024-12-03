@@ -7,13 +7,12 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#define MAX 10
 
 /* 사용자 정보 구조체 */
 typedef struct {
-    char id[MAXLENGTH + 1];
-    char pw[MAXLENGTH + 1];
-    char name[MAXLENGTH + 1];
+    char id[MAX_LENGTH + 1];
+    char pw[MAX_LENGTH + 1];
+    char name[MAX_LENGTH + 1];
 } User;
 
 /* 클라이언트 세션 구조체 */
@@ -39,10 +38,15 @@ typedef struct {
     char *file_data; // 전체 파일 데이터의 포인터
 } ThreadData;
 
+typedef struct {
+    char *data;
+    int data_size;
+} ChunkData;
+
 extern pthread_mutex_t m_lock;
 
 /* 서버 관련 함수 */
-void sign_in(CliSession *session, const char *data);
+void login(CliSession *session, const char *data);
 void sign_up(CliSession *session);
 void *home_menu(CliSession *cliS);
 void main_menu(ThreadArgs arg);

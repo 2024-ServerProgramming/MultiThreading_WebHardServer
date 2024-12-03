@@ -31,7 +31,7 @@ void *send_handler(void *input) {
         return NULL;
     }
 
-    //데이터 전송
+    // 데이터 전송
     size_t sent_bytes = 0;
     while (sent_bytes < info->data_size) {
         ssize_t sent = send(info->cli_sock, info->file_data + info->start_offset + sent_bytes, info->data_size - sent_bytes, 0);
@@ -56,21 +56,20 @@ void *send_handler(void *input) {
 }
    
 void *home_menu(CliSession *cliS){
-    char command[10]; // 명령어 저장
-    char filename[MAXLENGTH];
-    char buf[BUF_SIZE_4095];    // 파일 송수신 버퍼, BUFSIZE -> BUF_SIZE_4095로 수정
-    int fd;                     // 파일 디스크립터
-    unsigned fileSize;          // 파일 송수신할 때 총 파일 사이즈
-    unsigned sentSize = 0;      // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
-    unsigned recvSize;          // 파일 받은 사이즈
-    unsigned netFileSize;       // size_t == unsigned, 네트워크 전송용
-    unsigned chunkCnt;          // 청크 개수
-    int isnull;                 // 파일 있는지 없는지 여부 판별용 변수
-    int success = 0;
-
     find_session(cliS->session->session_id);
-
     while(1){
+        char command[10]; // 명령어 저장
+        char filename[MAX_LENGTH];
+        char buf[BUF_SIZE_4095];
+        int fd;                // 파일 디스크립터
+        unsigned fileSize;     // 파일 송수신할 때 총 파일 사이즈
+        unsigned sentSize = 0; // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
+        unsigned recvSize;     // 파일 받은 사이즈
+        unsigned netFileSize;  // size_t == unsigned, 네트워크 전송용
+        unsigned chunkCnt;
+        unsigned netChunkCnt;
+        int isnull;            // 파일 있는지 없는지 여부 판별용 변수
+        int success = 0;
         memset(command, 0, sizeof(command));
 
         if(recv(cliS->cli_data, command, sizeof(command), 0) <= 0){
@@ -89,7 +88,7 @@ void *home_menu(CliSession *cliS){
 
             //printf("Client(%d): Requesting file [%s]\n", cliS->cli_data, filename);
 
-            char filepath[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
+            char filepath[BUF_SIZE_4095]; 
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
 
             fd = open(filepath, O_RDONLY);
@@ -121,6 +120,7 @@ void *home_menu(CliSession *cliS){
                 close(fd);
                 continue;
             }
+            
             ssize_t bytes_read = read(fd, file_data, fileSize);
             if(bytes_read != fileSize){
                 perror("Failed to read the entire file");
@@ -131,7 +131,7 @@ void *home_menu(CliSession *cliS){
             close(fd);
 
             // 클라이언트로부터 배열 준비 완료 확인 받기
-            char result[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
+            char result[BUF_SIZE_4095];
             int n = recv(cliS->cli_data, result, sizeof(result) - 1, 0);
             if (n <= 0) {
                 perror("Failed to receive array ready confirmation");
@@ -140,7 +140,7 @@ void *home_menu(CliSession *cliS){
             }
             result[n] = '\0';
             printf("Received from client: %s\n", result); // 디버깅 출력
-            if (strcmp(result, "ARRAY_READY") != 0) {
+            if (strcmp(result, "DOWNLOAD_ARRAY_READY") != 0) {
                 printf("Client did not send array ready confirmation.\n");
                 free(file_data);
                 continue;
@@ -193,7 +193,6 @@ void *home_menu(CliSession *cliS){
             free(file_data);
             printf("File transfer to client completed successfully.\n");
         }
-        
         /* upload 명령어 */
         else if(strcmp(command, "upload") == 0){
             memset(filename, 0, sizeof(filename));
@@ -205,51 +204,133 @@ void *home_menu(CliSession *cliS){
 
             printf("Client(%d): Uploading file [%s]\n", cliS->cli_data, filename);
 
-            char filepath[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
+            char filepath[BUF_SIZE_4095]; 
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
 
-            fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if(fd < 0){
-                perror("file creation failed");
-                break;
+            // 클라이언트로부터 파일 존재 여부 수신
+            if (recv(cliS->cli_data, &isnull, sizeof(isnull), 0) <= 0) {
+                perror("Failed to receive file existence status");
+                continue;
             }
 
-            if(recv(cliS->cli_data, &netFileSize, sizeof(netFileSize), 0) <= 0){
-                printf("receiving file size failed\n");
-                close(fd);
-                break;
+            // 파일 존재 여부 검사
+            if (isnull == 0) {
+                printf("File not found on client.\n");
+                continue;
             }
 
-            // 네트워크 바이트 순서를 호스트 바이트 순서로 변환
-            fileSize = ntohl(netFileSize);
-            printf("Receiving file [%s] (%u bytes)\n", filename, fileSize);
+            // 클라이언트로부터 청크 개수 수신
+            if (recv(cliS->cli_data, &netChunkCnt, sizeof(netChunkCnt), 0) <= 0) {
+                perror("Failed to receive chunk count");
+                continue;
+            }
 
-            sentSize = 0;
-            while(sentSize < fileSize){
-                recvSize = recv(cliS->cli_data, buf, BUF_SIZE_4095, 0);
-                if (recvSize <= 0)
-                    break;
-                ssize_t bytes_written = pwrite(fd, buf, recvSize, sentSize); 
-                if (bytes_written < 0) {
-                    perror("Write failed");
+            chunkCnt = ntohl(netChunkCnt);
+            printf("Chunk count: %u\n", chunkCnt);
+
+            // 청크의 개수만큼 배열 생성
+            ChunkData *allChunks = malloc(chunkCnt * sizeof(ChunkData));
+            if (!allChunks) {
+                perror("Failed to allocate memory for chunks");
+                continue;
+            }
+            memset(allChunks, 0, chunkCnt * sizeof(ChunkData));
+
+            // 클라이언트에게 배열 준비 완료 메시지 전송
+            char result[MAX_LENGTH];
+            strcpy(result, "UPLOAD_ARRAY_READY");
+            if (send(cliS->cli_data, result, strlen(result), 0) <= 0) {
+                perror("Failed to send array ready confirmation");
+                free(allChunks);
+                continue;
+            }
+
+            // 청크 데이터 수신
+            unsigned receivedChunks = 0;
+            while (receivedChunks < chunkCnt) {
+                int net_index;
+                int net_data_size;
+                ssize_t received;
+
+                // 인덱스 수신
+                received = recv(cliS->cli_data, &net_index, sizeof(net_index), MSG_WAITALL);
+                if (received <= 0) {
+                    perror("Failed to receive chunk index");
                     break;
                 }
-                sentSize += recvSize;
+                int index = ntohl(net_index);
+                printf("Received chunk index: %d\n", index);
+
+                // 데이터 크기 수신
+                received = recv(cliS->cli_data, &net_data_size, sizeof(net_data_size), MSG_WAITALL);
+                if (received <= 0) {
+                    perror("Failed to receive data size");
+                    break;
+                }
+                int data_size = ntohl(net_data_size);
+                printf("Received data size: %d\n", data_size);
+
+                // 데이터 수신
+                char *data = malloc(BUF_SIZE_4095);
+                if (!data) {
+                    perror("Failed to allocate memory for chunk data");
+                    break;
+                }
+                size_t total_received = 0;
+                while(total_received < data_size){
+                    received = recv(cliS->cli_data, data + total_received, data_size - total_received, 0);
+                    if (received <= 0) {
+                        perror("Failed to receive chunk data");
+                        free(data);
+                        break;
+                    }
+                    total_received += received;
+                    printf("Received %zd bytes of data\n", received);
+                }
+
+                printf("Received chunk %d (%d bytes)\n", index, data_size);  // [디버깅] 수신한 청크 정보
+
+                if(data_size < BUF_SIZE_4095){
+                    memset(data + data_size, '\n', BUF_SIZE_4095 - data_size);
+                }
+
+                allChunks[index].data = data;
+                allChunks[index].data_size = data_size;
+                receivedChunks++;
             }
 
-            if(sentSize == fileSize){
-                printf("File [%s] received successfully.\n", filename);
-            } else {
-                printf("File [%s] transfer incomplete.\n", filename);
+            // 파일로 저장
+            fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) {
+                perror("Failed to open file for writing");
+                for (unsigned i = 0; i < chunkCnt; i++) {
+                    if (allChunks[i].data)
+                        free(allChunks[i].data);
+                }
+                free(allChunks);
+                continue;
             }
+
+            for (unsigned i = 0; i < chunkCnt; i++) {       // 전체 배열에 저장된 청크 데이터 전부 기록
+                if (allChunks[i].data) {
+                    if(write(fd, allChunks[i].data, allChunks[i].data_size) != allChunks[i].data_size) {
+                        perror("Failed to write chunk to file");
+                        continue;
+                    }
+                    free(allChunks[i].data);
+                } 
+            }
+            free(allChunks);
             close(fd);
-        } 
+
+            printf("File [%s] downloaded successfully.\n", filename);
+        }
         else if (strcmp(command, "show") == 0){
             FILE *fp;
-            char result[BUF_SIZE_4095]; // BUF_SIZE -> BUF_SIZE_4095로 수정
+            char result[BUF_SIZE_4095]; 
 
-            char filepath[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
-            snprintf(filepath, sizeof(filepath), "ls -alhSG ./user_data/%s", cliS->session->user_id);
+            char filepath[BUF_SIZE_4095]; 
+            snprintf(filepath, sizeof(filepath), "ls -a ./user_data/%s", cliS->session->user_id);
 
             fp = popen(filepath, "r");
             if (fp == NULL) {
@@ -283,7 +364,7 @@ void *home_menu(CliSession *cliS){
 
             printf("Client(%d): Deleting file [%s]\n", cliS->cli_data, filename);
 
-            char filepath[BUF_SIZE_4095]; // BUF_SIZE -> BUF_SIZE_4095로 수정
+            char filepath[BUF_SIZE_4095]; 
             snprintf(filepath, sizeof(filepath), "./user_data/%s/%s", cliS->session->user_id, filename);
 
             if(remove(filepath) == 0){

@@ -4,10 +4,10 @@ static Session *session_list = NULL;
 
 void generate_session_id(char *session_id){
 		const char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-		for(int i = 0; i < MAXLENGTH; i++){
+		for(int i = 0; i < MAX_LENGTH; i++){
 			session_id[i] = chars[rand() % strlen(chars)];
 		}
-		session_id[MAXLENGTH] = '\0';
+		session_id[MAX_LENGTH] = '\0';
 }
 
 Session *create_session(const char *user_id){
@@ -18,7 +18,7 @@ Session *create_session(const char *user_id){
 		}
 
 		generate_session_id(new_session->session_id);
-		strncpy(new_session->user_id, user_id, MAXLENGTH);
+		strncpy(new_session->user_id, user_id, MAX_LENGTH);
 		new_session->last_active = time(NULL);
 		new_session->next = session_list;
 		session_list = new_session;

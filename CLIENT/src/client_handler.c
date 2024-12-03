@@ -1,26 +1,77 @@
 #include "client_config.h"
 #include <fcntl.h>
 #include <sys/time.h>
-pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_mutex_t send_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t available_threads_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_t thread_pool[MAX_THREADS];
+int available_threads[MAX_THREADS] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+void *send_handler(void *input) {
+    ThreadData *info = (ThreadData *)input;
+    int net_index = htonl(info->chunk_idx);
+    int net_data_size = htonl(info->data_size);
+
+    pthread_mutex_lock(&send_lock);
+    printf("Thread %ld: Sending chunk %d (size: %ld bytes)\n", pthread_self(), info->chunk_idx, info->data_size);        // [디버깅] 전송하려는 청크 정보
+
+    printf("Thread %ld: Sending index %d\n", pthread_self(), info->chunk_idx);           // [디버깅] 인덱스 전송
+    if (send(info->cli_sock, &net_index, sizeof(net_index), 0) <= 0) {
+        perror("Failed to send index");
+        pthread_mutex_unlock(&send_lock);
+        free(info);
+        return NULL;
+    }
+
+    printf("Thread %ld: Sending data_size %ld\n", pthread_self(), info->data_size);   // [디버깅] 데이터 크기 전송
+    if (send(info->cli_sock, &net_data_size, sizeof(net_data_size), 0) <= 0) {
+        perror("Failed to send data size");
+        pthread_mutex_unlock(&send_lock);
+        free(info);
+        return NULL;
+    }
+
+    // 데이터 전송
+    size_t sent_bytes = 0;
+    while (sent_bytes < info->data_size) {
+        ssize_t sent = send(info->cli_sock, info->file_data + info->start_offset + sent_bytes, info->data_size - sent_bytes, 0);
+        if (sent <= 0) {
+            perror("Failed to send data");
+            break;
+        }
+        sent_bytes += sent;
+        printf("Thread %ld: Sent %zd bytes of data\n", pthread_self(), sent); 
+    }
+    
+    printf("Thread %ld: Finished sending chunk %d\n", pthread_self(), info->chunk_idx);  // [디버깅] 청크 전송 완료
+    pthread_mutex_unlock(&send_lock);
+
+
+    pthread_mutex_lock(&available_threads_lock);
+    available_threads[info->thread_idx] = 1;        // 스레드 다시 작업 가능으로 변경
+    pthread_mutex_unlock(&available_threads_lock);
+
+    free(info);
+    return NULL;
+}
 
 void home_menu(int sd){
     while(1){
         char command[10];            // 명령어 저장
         char filename[MAX_LENGTH];
-        char buf[BUF_SIZE_4095];     // 파일 송수신 버퍼, 4095인 BUF_SIZE여야 하는데 512인 BUFSIZE로 잘못 작성되어 있길래 수정
-                                     // buffer overflow 나던게 이것 때문인 듯
+        char buf[BUF_SIZE_4095];     // 파일 송수신 버퍼
         int fd;                      // 파일 디스크립터
         unsigned fileSize;           // 파일 송수신할 때 총 파일 사이즈
-        unsigned sentSize = 0;       // 파일 보낸 사이즈 합, 계속 recvSize에서 더해줘서 fileSize까지 받도록
+        unsigned sentSize = 0;       // 파일 보낸 사이즈 합
         unsigned recvSize;           // 파일 받은 사이즈
         unsigned netFileSize;        // size_t == unsigned, 네트워크 전송용
         unsigned chunkCnt;
         unsigned netChunkCnt;
         int isnull;                  // 파일 있는지 없는지 여부 판별용 변수
         int success = 0;
-
         // FILE *fp = popen("clear", "r"); // 화면 지우기
         // pclose(fp);                     // 파일 포인터 닫기
+        memset(command, 0, sizeof(command));
 
         printf("\nEnter command (download / upload / show / delete / exit): ");
         if (fgets(command, sizeof(command), stdin) == NULL) {
@@ -41,9 +92,6 @@ void home_menu(int sd){
         }
 
         if (strcmp(command, "download") == 0) {
-            struct timeval start, end;
-            gettimeofday(&start, NULL); // 다운로드 시작 시간 기록
-
             printf("Enter filename to download: ");
             fgets(filename, sizeof(filename), stdin);
             filename[strcspn(filename, "\n")] = '\0';
@@ -80,10 +128,8 @@ void home_menu(int sd){
             memset(allChunks, 0, chunkCnt * sizeof(ChunkData));
 
             // 서버에게 배열 준비 완료 메시지 전송
-            char result[BUF_SIZE_4095]; // 여기도 BUF_SIZE_4095로 수정. 
-            // 사실 얘는 4095까지 필요 없고 512로도 충분할 것 같은데 
-            // BUFFER SIZE를 그냥 하나로 통일하는 게 나을 거 같아서 수정
-            strcpy(result, "ARRAY_READY");
+            char result[MAX_LENGTH]; 
+            strcpy(result, "DOWNLOAD_ARRAY_READY");
             if (send(sd, result, strlen(result), 0) <= 0) {
                 perror("Failed to send array ready confirmation");
                 free(allChunks);
@@ -135,7 +181,6 @@ void home_menu(int sd){
 
                 printf("Received chunk %d (%d bytes)\n", index, data_size);  // [디버깅] 수신한 청크 정보
 
-                // 데이터 크기가 BUF_SIZE_4095보다 작을 경우 나머지를 '\n'으로 채우기
                 if(data_size < BUF_SIZE_4095){
                     memset(data + data_size, '\n', BUF_SIZE_4095 - data_size);
                 }
@@ -169,63 +214,121 @@ void home_menu(int sd){
             free(allChunks);
             close(fd);
 
-            gettimeofday(&end, NULL); // 다운로드 종료 시간 기록
-            double download_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
-            printf("Download completed in %.6f seconds.\n", download_time);
-
             printf("File [%s] downloaded successfully.\n", filename);
         }
         else if(strcmp(command, "upload") == 0){
-            struct timeval start, end;
-            gettimeofday(&start, NULL); // 업로드 시작 시간 기록
-
             memset(filename, 0, sizeof(filename));
 
-            /* 업로드할 파일 이름 입력 */
             printf("enter filename to upload: ");
             fgets(filename, sizeof(filename), stdin);
             filename[strcspn(filename, "\n")] = '\0';
+
+            send(sd, filename, strlen(filename), 0);
 
             fd = open(filename, O_RDONLY);
             if(fd < 0){
                 perror("file open failed");
                 isnull = 0;
+                send(sd, &isnull, sizeof(isnull), 0);
                 continue;
             }
+            isnull = 1;
+            send(sd, &isnull, sizeof(isnull), 0);
 
-            send(sd, filename, strlen(filename), 0); // 파일 이름 전송 1
-
-            fileSize = lseek(fd, 0, SEEK_END);
+            off_t data_size = lseek(fd, 0, SEEK_END);
             lseek(fd, 0, SEEK_SET);
-            netFileSize = htonl(fileSize);
-            send(sd, &netFileSize, sizeof(netFileSize), 0); // 파일 크기 송신 2
+            fileSize = data_size;
 
-            printf("Uploading file [%s] (%u bytes)\n", filename, fileSize); // 업로드할 파일 정보 출력
+            printf("Uploading file [%s] (%u bytes)\n", filename, fileSize);
 
-            sentSize = 0;
-            while(sentSize < fileSize){
-                recvSize = read(fd, buf, sizeof(buf)); // BUF_SIZE_4095 대신 sizeof(buf) 사용하여 버퍼의 크기를 명확히 지정.(버퍼 오버플로우 방지)
-                if (recvSize <= 0) break;
-                send(sd, buf, recvSize, 0); // 파일 순서대로 보내기 3
-                sentSize += recvSize;
+            // 청크 개수 계산 및 전송
+            chunkCnt = (fileSize + BUF_SIZE_4095 - 1) / BUF_SIZE_4095;
+            unsigned net_chunkCnt = htonl(chunkCnt);
+            send(sd, &net_chunkCnt, sizeof(net_chunkCnt), 0);
+
+            // 파일 전체를 메모리에 읽기
+            char *file_data = malloc(fileSize);
+            if (!file_data) {
+                perror("Memory allocation failed");
+                close(fd);
+                continue;
             }
-
-            if(sentSize == fileSize){
-                printf("file [%s] uploaded successfully.\n", filename);
-            } 
-            else{
-                printf("file [%s] upload incomplete.\n", filename);
+            
+            ssize_t bytes_read = read(fd, file_data, fileSize);
+            if(bytes_read != fileSize){
+                perror("Failed to read the entire file");
+                free(file_data);
+                close(fd);
+                continue;
             }
             close(fd);
 
-            gettimeofday(&end, NULL); // 업로드 종료 시간 기록
-            double upload_time = (end.tv_sec - start.tv_sec) + (end.tv_usec - start.tv_usec) / 1000000.0;
-            printf("Upload completed in %.6f seconds.\n", upload_time);
+            // 서버로부터 배열 준비 완료 확인 받기
+            char result[BUF_SIZE_4095];
+            int n = recv(sd, result, sizeof(result) - 1, 0);
+            if (n <= 0) {
+                perror("Failed to receive array ready confirmation");
+                free(file_data);
+                break;
+            }
+            result[n] = '\0';
+            printf("Received from client: %s\n", result); // 디버깅 출력
+            if (strcmp(result, "UPLOAD_ARRAY_READY") != 0) {
+                printf("Client did not send array ready confirmation.\n");
+                free(file_data);
+                continue;
+            }
+
+            // 스레드풀을 이용한 청크 전송
+            size_t offset = 0;
+            int chunkIdx = 0;
+            while (offset < fileSize) {
+                ThreadData *info = malloc(sizeof(ThreadData));
+                if (!info) {
+                    perror("Memory allocation failed");
+                    break;
+                }
+                info->cli_sock = sd;
+                info->chunk_idx = chunkIdx;
+                info->start_offset = offset;
+                info->data_size = ((offset + BUF_SIZE_4095) > fileSize) ? (fileSize - offset) : BUF_SIZE_4095;
+                info->file_data = file_data;
+
+                // 스레드풀에서 사용 가능한 스레드 찾기
+                int assigned = 0;
+                while (!assigned) {
+                    pthread_mutex_lock(&available_threads_lock);
+                    for (int j = 0; j < MAX_THREADS; j++) {
+                        if (available_threads[j]){
+                            available_threads[j] = 0;   
+                            pthread_mutex_unlock(&available_threads_lock);
+                            pthread_create(&thread_pool[j], NULL, send_handler, info);
+                            info->thread_idx = j;
+                            assigned = 1;               
+                            break;
+                        }
+                    }
+                    if (!assigned) {
+                        pthread_mutex_unlock(&available_threads_lock);
+                        usleep(1000);
+                    }
+                }
+
+                offset += info->data_size;
+                chunkIdx++;
+            }
+
+            // 모든 스레드 종료 대기
+            for (int i = 0; i < MAX_THREADS; i++) {
+                pthread_join(thread_pool[i], NULL);
+            }
+
+            free(file_data);
+            printf("File transfer to client completed successfully.\n");
         }
+
         else if(strcmp(command, "show") == 0){
-            char result[BUF_SIZE_4095]; // 여기도 BUF_SIZE_4095로 수정
-            // 사실 얘도 4095까지 필요 없고 512로도 충분할 것 같은데 
-            // BUFFER SIZE를 그냥 하나로 통일하는 게 나을 거 같아서 수정
+            char result[BUF_SIZE_4095];
             int n = recv(sd, result, sizeof(result) - 1, 0);
             if(n <= 0){
                 perror("Failed to receive");
