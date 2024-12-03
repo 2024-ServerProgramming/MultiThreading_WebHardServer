@@ -7,13 +7,12 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#define MAX 10
 
 /* 사용자 정보 구조체 */
 typedef struct {
-    char id[MAXLENGTH + 1];
-    char pw[MAXLENGTH + 1];
-    char name[MAXLENGTH + 1];
+    char id[MAX_LENGTH + 1];
+    char pw[MAX_LENGTH + 1];
+    char name[MAX_LENGTH + 1];
 } User;
 
 /* 클라이언트 세션 구조체 */
