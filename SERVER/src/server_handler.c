@@ -236,7 +236,7 @@ void *home_menu(CliSession *cliS){
             memset(allChunks, 0, chunkCnt * sizeof(ChunkData));
 
             // 서버에게 배열 준비 완료 메시지 전송
-            char result[BUFSIZE];
+            char result[BUF_SIZE_4095];
             strcpy(result, "ARRAY_READY");
             if (send(cliS->cli_data, result, strlen(result), 0) <= 0) {
                 perror("Failed to send array ready confirmation");
@@ -270,7 +270,7 @@ void *home_menu(CliSession *cliS){
                 printf("Received data size: %d\n", data_size);
 
                 // 데이터 수신
-                char *data = malloc(BUF_SIZE);
+                char *data = malloc(BUF_SIZE_4095);
                 if (!data) {
                     perror("Failed to allocate memory for chunk data");
                     break;
@@ -290,8 +290,8 @@ void *home_menu(CliSession *cliS){
                 printf("Received chunk %d (%d bytes)\n", index, data_size);  // [디버깅] 수신한 청크 정보
 
                 // 데이터 크기가 BUF_SIZE보다 작을 경우 나머지를 '\n'으로 채우기
-                if(data_size < BUF_SIZE){
-                    memset(data + data_size, '\n', BUF_SIZE - data_size);
+                if(data_size < BUF_SIZE_4095){
+                    memset(data + data_size, '\n', BUF_SIZE_4095 - data_size);
                 }
 
                 allChunks[index].data = data;
