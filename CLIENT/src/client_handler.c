@@ -31,6 +31,7 @@ void home_menu(int sd){
 
         if(strcmp(command, "exit") == 0){
             printf("exiting client.\n");
+            close(sd); // 소켓 닫기
             break;
         }
 

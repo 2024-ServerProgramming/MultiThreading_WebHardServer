@@ -249,7 +249,7 @@ void *home_menu(CliSession *cliS){
             char result[BUF_SIZE_4095]; // BUF_SIZE -> BUF_SIZE_4095로 수정
 
             char filepath[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
-            snprintf(filepath, sizeof(filepath), "ls -a ./user_data/%s", cliS->session->user_id);
+            snprintf(filepath, sizeof(filepath), "ls -alhSG ./user_data/%s", cliS->session->user_id);
 
             fp = popen(filepath, "r");
             if (fp == NULL) {
