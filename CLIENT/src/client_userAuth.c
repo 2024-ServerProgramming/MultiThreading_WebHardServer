@@ -22,12 +22,12 @@ void get_password(char *password, size_t max_len) {
     printf("\n");
 }
 
-void sign_in(int sd) {
+void login(int sd) {
     User s;
     char buf[256];
     int n;
 
-    strcpy(buf, "SignIn");
+    strcpy(buf, "Login");
     send(sd, buf, strlen(buf), 0);
 
     n = recv(sd, buf, sizeof(buf) - 1, 0);
@@ -37,7 +37,7 @@ void sign_in(int sd) {
     }
     buf[n] = '\0';
 
-    if (strcmp(buf, "SignInOK") != 0) {
+    if (strcmp(buf, "LoginOK") != 0) {
         printf("Unexpected response: %s\n", buf);
         return;
     }
@@ -62,6 +62,8 @@ void sign_in(int sd) {
     printf("%s\n", buf);
 
     if (strstr(buf, "Login successful") != NULL) {
+        // FILE *fp = popen("clear", "r"); // 화면 지우기
+        // pclose(fp);                     // 파일 포인터 닫기
         home_menu(sd);
     } else {
         return;
@@ -97,4 +99,12 @@ void sign_up(int sd) {
 
     buf[n] = '\0';
     printf("%s\n", buf);
+
+    if (strstr(buf, "Sign up successful") != NULL) {
+        // FILE *fp = popen("clear", "r"); // 화면 지우기
+        // pclose(fp);                     // 파일 포인터 닫기 
+        home_menu(sd);
+    } else {
+        return;
+    }
 }

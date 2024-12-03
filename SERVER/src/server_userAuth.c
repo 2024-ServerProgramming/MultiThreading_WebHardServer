@@ -7,9 +7,9 @@
 pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
-void sign_in(CliSession *cliS,  const char *data){
+void login(CliSession *cliS,  const char *data){
     User s;
-	char buf[BUFSIZE];
+	char buf[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
     memset(buf, 0, sizeof(buf));
 
     if (sscanf(data, "%10[^:]:%10s", s.id, s.pw) != 2){
@@ -27,7 +27,7 @@ void sign_in(CliSession *cliS,  const char *data){
         return;
     }
 
-    char line[BUFSIZE];
+    char line[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
     int login_success = 0;
     while (fgets(line, sizeof(line), fp)){
         User temp;
@@ -55,7 +55,7 @@ void sign_in(CliSession *cliS,  const char *data){
 }
 
 void create_directory(const char *username){
-    char path[BUFSIZE];
+    char path[BUF_SIZE_4095];
 
     snprintf(path, sizeof(path), "./user_data/%s", username);
 
@@ -67,7 +67,7 @@ void create_directory(const char *username){
 
 void sign_up(CliSession *cliS){
     User s;
-    char buf[BUFSIZE];
+    char buf[BUF_SIZE_4095]; // BUFSIZE -> BUF_SIZE_4095로 수정
 
     int n = recv(cliS->cli_data, buf, sizeof(buf) - 1, 0);
     if(n == -1){
